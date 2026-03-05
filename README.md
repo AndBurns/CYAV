@@ -14,7 +14,7 @@ Simple Flask app to:
 - Fall back to the nearest station with an available METAR when the selected airport has none,
   and show the distance to that station
 - Provide a top-right hamburger menu with Print and About actions
-- Generate a Prince XML PDF report from a print-options modal (with per-section include toggles)
+- Generate a WeasyPrint PDF report from a print-options modal (with per-section include toggles)
 - Persist optional preferences (recent airports and print options) via privacy-controlled localStorage
 - Show Privacy & Cookies controls with accept/reject and per-item retention toggles
 
@@ -51,7 +51,7 @@ Airport selector behavior:
 - METAR data sources: AviationWeather API (`aviationweather.gov`) with NAV CANADA Weather Recall (`plan.navcanada.ca`) fallback for station LWIS/METAR coverage
 - Runway data source: OurAirports (`runways.csv`) with automatic local fallback from `app.py` if online data is unavailable
 - Frequency data source: OurAirports (`airport-frequencies.csv`) with automatic local fallback from `app.py` if online data is unavailable
-- PDF generation: Prince XML CLI (`prince`) must be installed on the server; app checks availability before opening print flow
+- PDF generation: WeasyPrint must be available in the Python environment; app checks availability before opening print flow
 - This app does not set first-party tracking cookies; it uses localStorage for consent state and optional preference retention
 
 ## Deploy on Apache at /FlightInfo

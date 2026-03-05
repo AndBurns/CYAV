@@ -968,15 +968,15 @@
     </dialog>
 
     <dialog id="prince-popup">
-        <h3>Prince Not Installed</h3>
-        <p id="prince-popup-message" class="advisory-text">Prince HTML to PDF is not installed on this server.</p>
+        <h3>WeasyPrint Not Available</h3>
+        <p id="prince-popup-message" class="advisory-text">WeasyPrint is not available on this server.</p>
         <button type="button" id="prince-popup-close" class="btn">Close</button>
     </dialog>
 
     <dialog id="about-popup">
         <h3>About FlightInfo</h3>
         <p class="about-text">FlightInfo uses publicly available information including weather (METAR and TAF), SIGMET, and NOTAM information from NAV CANADA and U.S. AviationWeather.gov services.</p>
-        <p class="about-text">Print-to-PDF functionality uses a non-commercial version of Prince XML.</p>
+        <p class="about-text">Print-to-PDF functionality uses WeasyPrint.</p>
         <p class="about-text">This application currently uses custom responsive CSS for smaller screens.</p>
         <button type="button" id="about-popup-close" class="btn">Close</button>
     </dialog>
@@ -1117,7 +1117,7 @@
             const prefPrintOptions = document.getElementById("pref-print-options");
             const statusRecent = document.getElementById("status-recent");
             const statusPrint = document.getElementById("status-print");
-            const princeStatusUrl = {{ url_for('prince_status')|tojson }};
+            const princeStatusUrl = {{ url_for('pdf_status')|tojson }};
             const printReportUrl = {{ url_for('print_report')|tojson }};
             let startEpoch = Date.now();
 
@@ -1461,12 +1461,12 @@
                     try {
                         const statusResponse = await fetch(princeStatusUrl, { cache: "no-store" });
                         if (!statusResponse.ok) {
-                            throw new Error("Unable to validate Prince installation.");
+                            throw new Error("Unable to validate WeasyPrint availability.");
                         }
                         const statusData = await statusResponse.json();
                         if (!statusData.installed) {
                             if (princePopupMessage) {
-                                princePopupMessage.textContent = "Prince HTML to PDF is not installed on this server.";
+                                princePopupMessage.textContent = "WeasyPrint is not available on this server.";
                             }
                             if (princePopup && typeof princePopup.showModal === "function") {
                                 princePopup.showModal();
@@ -1488,7 +1488,7 @@
                         window.open(printUrl, "_blank", "noopener,noreferrer");
                     } catch (error) {
                         if (princePopupMessage) {
-                            princePopupMessage.textContent = "Unable to verify Prince availability. Please try again.";
+                            princePopupMessage.textContent = "Unable to verify WeasyPrint availability. Please try again.";
                         }
                         if (princePopup && typeof princePopup.showModal === "function") {
                             princePopup.showModal();

@@ -4,10 +4,7 @@ import csv
 import io
 import json
 import re
-import shutil
-import subprocess
 import threading
-import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,6 +16,13 @@ from zoneinfo import ZoneInfo
 
 import requests
 from flask import Flask, Response, jsonify, render_template, request
+
+try:
+    from weasyprint import HTML
+    from weasyprint import __version__ as WEASYPRINT_VERSION
+except Exception:
+    HTML = None
+    WEASYPRINT_VERSION = None
 
 
 app = Flask(__name__)
@@ -2260,22 +2264,12 @@ def build_conditions_context(requested_airport: str | None = None) -> dict[str, 
     }
 
 
-def _prince_version() -> str | None:
-    if shutil.which("prince") is None:
+def _weasyprint_version() -> str | None:
+    if HTML is None:
         return None
-    try:
-        result = subprocess.run(
-            ["prince", "--version"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-    version_text = (result.stdout or result.stderr or "").strip()
-    return version_text if version_text else "Prince"
+    if WEASYPRINT_VERSION:
+        return f"WeasyPrint {WEASYPRINT_VERSION}"
+    return "WeasyPrint"
 
 
 def _query_bool(name: str, default: bool = True) -> bool:
@@ -2285,9 +2279,10 @@ def _query_bool(name: str, default: bool = True) -> bool:
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
+@app.route("/pdf-status")
 @app.route("/prince-status")
-def prince_status() -> Response:
-    version = _prince_version()
+def pdf_status() -> Response:
+    version = _weasyprint_version()
     return jsonify(
         {
             "installed": version is not None,
@@ -2298,9 +2293,9 @@ def prince_status() -> Response:
 
 @app.route("/print-report")
 def print_report() -> Response:
-    version = _prince_version()
+    version = _weasyprint_version()
     if version is None:
-        return jsonify({"error": "Prince is not installed on this server."}), 503
+        return jsonify({"error": "WeasyPrint is not available on this server."}), 503
 
     selected_airport = request.args.get("airport", "CYAV")
     context = build_conditions_context(selected_airport)
@@ -2323,25 +2318,9 @@ def print_report() -> Response:
     )
 
     try:
-        with tempfile.TemporaryDirectory(prefix="flight-conditions-") as temp_dir:
-            temp_path = Path(temp_dir)
-            html_path = temp_path / "report.html"
-            pdf_path = temp_path / "report.pdf"
-            html_path.write_text(html, encoding="utf-8")
-
-            result = subprocess.run(
-                ["prince", str(html_path), "-o", str(pdf_path)],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=45,
-            )
-            if result.returncode != 0 or not pdf_path.exists():
-                error_text = (result.stderr or result.stdout or "Prince failed to render PDF.").strip()
-                return jsonify({"error": error_text}), 500
-
-            pdf_bytes = pdf_path.read_bytes()
-    except (OSError, subprocess.SubprocessError) as exc:
+        base_url = str(Path(__file__).resolve().parent)
+        pdf_bytes = HTML(string=html, base_url=base_url).write_pdf()
+    except Exception as exc:
         return jsonify({"error": f"Unable to generate PDF: {exc}"}), 500
 
     report_date = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
