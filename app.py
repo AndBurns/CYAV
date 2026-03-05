@@ -1882,6 +1882,70 @@ def _flight_category(ceiling_ft: int | None, visibility_sm: float | None) -> dic
     }
 
 
+def _extract_flight_category_from_metar(metar: dict[str, Any]) -> dict[str, str]:
+    raw_text = str(metar.get("rawOb") or metar.get("raw_text") or "").strip()
+    _, _, ceiling_ft = _extract_metar_ceiling_and_other(raw_text)
+    visibility_sm = _parse_visibility_sm(metar.get("visib"))
+    return _flight_category(ceiling_ft, visibility_sm)
+
+
+def _resolve_flight_category_with_nearest_fallback(
+    requested_airport: str,
+    airport_index: dict[str, dict[str, Any]],
+    preferred_metar: dict[str, Any] | None,
+    preferred_source_code: str | None,
+) -> tuple[dict[str, str], str | None]:
+    preferred_code = (preferred_source_code or requested_airport).upper()
+    if preferred_metar is not None:
+        preferred_category = _extract_flight_category_from_metar(preferred_metar)
+        if preferred_category["label"] != "N/A":
+            return preferred_category, preferred_code
+    else:
+        preferred_category = {
+            "label": "N/A",
+            "color": "",
+            "concept": "Insufficient ceiling/visibility data for category",
+        }
+
+    requested = airport_index.get(requested_airport)
+    if requested is None:
+        return preferred_category, preferred_code
+
+    requested_lat = requested["lat"]
+    requested_lon = requested["lon"]
+
+    candidates: list[tuple[str, float]] = []
+    for code, station in METAR_STATIONS.items():
+        if code == requested_airport:
+            continue
+        distance_km = haversine_km(requested_lat, requested_lon, station["lat"], station["lon"])
+        candidates.append((code, distance_km))
+
+    sorted_candidates = sorted(candidates, key=lambda entry: entry[1])
+
+    for station_code, _ in sorted_candidates:
+        if station_code == preferred_code:
+            continue
+        cached = _get_cached_metar_entry(station_code)
+        if cached is None or not _is_metar_recent(cached, FALLBACK_METAR_MAX_AGE_HOURS):
+            continue
+        category = _extract_flight_category_from_metar(cached)
+        if category["label"] != "N/A":
+            return category, station_code
+
+    for station_code, _ in sorted_candidates:
+        if station_code == preferred_code:
+            continue
+        fetched = fetch_metar(station_code)
+        if fetched is None or not _is_metar_recent(fetched, FALLBACK_METAR_MAX_AGE_HOURS):
+            continue
+        category = _extract_flight_category_from_metar(fetched)
+        if category["label"] != "N/A":
+            return category, station_code
+
+    return preferred_category, preferred_code
+
+
 def decode_metar(metar: dict[str, Any]) -> dict[str, Any]:
     wind = parse_wind(metar)
     if wind is None:
@@ -1909,7 +1973,7 @@ def decode_metar(metar: dict[str, Any]) -> dict[str, Any]:
     altim_text = f"{altimeter_inhg:.2f} inHg" if altimeter_inhg is not None else "N/A"
     raw_text = str(metar.get("rawOb") or metar.get("raw_text") or "").strip()
     ceiling_text, other_weather_text, ceiling_ft = _extract_metar_ceiling_and_other(raw_text)
-    category = _flight_category(ceiling_ft, visibility_sm)
+    category = _extract_flight_category_from_metar(metar)
 
     return {
         "raw": raw_text or "N/A",
@@ -2146,6 +2210,19 @@ def build_conditions_context(requested_airport: str | None = None) -> dict[str, 
                     local_latest.get("obsTime") or local_latest.get("observation_time")
                 )
             decoded = decode_metar(metar)
+            flight_category, flight_category_source = _resolve_flight_category_with_nearest_fallback(
+                selected_airport,
+                airport_index,
+                metar,
+                metar_source_code,
+            )
+            decoded["flight_category_color"] = flight_category["color"]
+            decoded["flight_category_concept"] = flight_category["concept"]
+            decoded["flight_category_source_code"] = flight_category_source
+            category_label = flight_category["label"]
+            if category_label != "N/A" and flight_category_source and flight_category_source != selected_airport:
+                category_label = f"{category_label} ({flight_category_source})"
+            decoded["flight_category_label"] = category_label
             decoded["observed_local"] = format_observed_local(decoded["observed"])
             _, observed_zulu = format_local_and_zulu(decoded["observed"])
             decoded["observed_zulu"] = observed_zulu
