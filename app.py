@@ -4,7 +4,10 @@ import csv
 import io
 import json
 import re
+import shutil
+import subprocess
 import threading
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -15,7 +18,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
-from flask import Flask, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 
 app = Flask(__name__)
@@ -739,6 +742,8 @@ def _decode_weather_token(token: str) -> str | None:
     elif "SH" in descriptor_list and any(code in precipitation for code in phenomenon_list):
         precip_words = " and ".join(precipitation[code] for code in phenomenon_list if code in precipitation)
         words.append(f"Showers of {precip_words}")
+    elif "SH" in descriptor_list and not phenomenon_list:
+        words.append("Showers")
     else:
         for code in descriptor_list:
             if code not in {"TS", "SH"}:
@@ -998,12 +1003,18 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
             if overlay_start and overlay_end and overlay_end <= overlay_start:
                 overlay_end = overlay_end + timedelta(days=1)
 
+            probability_text = ""
+            probability_match = re.match(r"PROB(30|40)", token)
+            if probability_match:
+                probability_text = f"Probability {probability_match.group(1)}%"
+
             overlays.append(
                 {
                     "type": "TEMPO" if "TEMPO" in token else "BECMG" if token.startswith("BECMG") else "PROB",
                     "start": overlay_start,
                     "end": overlay_end,
                     "text": segment_text,
+                    "probability_text": probability_text,
                     "raw": f"{token} {segment_text}".strip(),
                 }
             )
@@ -1109,6 +1120,7 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                         "visibility": overlay_components["visibility"],
                         "clouds": overlay_components["clouds"],
                         "other": overlay_components["other"],
+                        "probability_text": str(overlay.get("probability_text") or ""),
                         "ws_hazard": overlay_components["ws_hazard"],
                         "ws_alert": overlay_components["ws_alert"],
                         "expires": window_until,
@@ -1116,6 +1128,13 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                         "raw": overlay["raw"],
                     }
                 )
+                if overlay.get("probability_text"):
+                    existing_other = str(display_rows[-1].get("other") or "").strip()
+                    probability_text = str(overlay["probability_text"])
+                    if existing_other and existing_other not in {"None", "N/A"}:
+                        display_rows[-1]["other"] = f"{probability_text}; {existing_other}"
+                    else:
+                        display_rows[-1]["other"] = probability_text
                 window_day, window_line = _compact_window_lines(overlay_start_local, overlay_end_local)
                 display_rows[-1]["window_day"] = window_day
                 display_rows[-1]["window_line"] = window_line
@@ -1936,13 +1955,12 @@ def choose_preferred(runway_rows: list[dict[str, Any]]) -> str | None:
     return chosen["runway"]
 
 
-@app.route("/")
-def index() -> str:
+def build_conditions_context(requested_airport: str | None = None) -> dict[str, Any]:
     airport_index = get_cached_canadian_airports()
     if not airport_index:
         airport_index = AIRPORTS
 
-    selected_airport = request.args.get("airport", "CYAV").upper()
+    selected_airport = (requested_airport or "CYAV").upper()
     if selected_airport not in airport_index:
         selected_airport = "CYAV" if "CYAV" in airport_index else next(iter(airport_index))
 
@@ -2073,47 +2091,150 @@ def index() -> str:
         {"code": code, "name": info["name"]}
         for code, info in airport_index.items()
     ]
+    report_generated_local = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d %H:%M %Z")
 
-    return render_template(
-        "index.html",
-        airports=airport_index,
-        airport_options=airport_options,
-        selected_airport=selected_airport,
-        selected_airport_data=selected_airport_data,
-        metar=metar,
-        decoded=decoded,
-        runway_rows=runway_rows,
-        preferred=preferred,
-        error=error,
-        metar_source_code=metar_source_code,
-        metar_provider=metar_provider,
-        local_recent_exists=local_recent_exists,
-        local_recent_label=local_recent_label,
-        local_recent_raw=local_recent_raw,
-        local_recent_age_text=local_recent_age_text,
-        local_recent_age_color=local_recent_age_color,
-        metar_distance_km=round(metar_distance_km, 1) if metar_distance_km is not None else None,
-        metar_distance_nm=round((metar_distance_km or 0.0) / 1.852, 1) if metar_distance_km is not None else None,
-        runway_source=runway_source,
-        frequency_source=frequency_source,
-        other_frequencies=other_frequencies,
-        taf_rows=taf_rows,
-        taf_decoded_rows=taf_decoded_rows,
-        taf_source_code=taf_source_code,
-        taf_distance_km=round(taf_distance_km, 1) if taf_distance_km is not None else None,
-        taf_distance_nm=round(taf_distance_nm, 1) if taf_distance_nm is not None else None,
-        taf_direction=taf_direction,
-        taf_fallback_used=taf_fallback_used,
-        taf_summary_text=taf_summary_text,
-        taf_updated_local=taf_updated_local,
-        taf_updated_zulu=taf_updated_zulu,
-        taf_age_text=taf_age_text,
-        taf_age_color=taf_age_color,
-        notam_rows=notam_recent_rows,
-        notam_older_rows=notam_older_rows,
-        sigmet_rows=sigmet_rows,
-        fallback_used=fallback_used,
+    return {
+        "airports": airport_index,
+        "airport_options": airport_options,
+        "selected_airport": selected_airport,
+        "selected_airport_data": selected_airport_data,
+        "metar": metar,
+        "decoded": decoded,
+        "runway_rows": runway_rows,
+        "preferred": preferred,
+        "error": error,
+        "metar_source_code": metar_source_code,
+        "metar_provider": metar_provider,
+        "local_recent_exists": local_recent_exists,
+        "local_recent_label": local_recent_label,
+        "local_recent_raw": local_recent_raw,
+        "local_recent_age_text": local_recent_age_text,
+        "local_recent_age_color": local_recent_age_color,
+        "metar_distance_km": round(metar_distance_km, 1) if metar_distance_km is not None else None,
+        "metar_distance_nm": round((metar_distance_km or 0.0) / 1.852, 1) if metar_distance_km is not None else None,
+        "runway_source": runway_source,
+        "frequency_source": frequency_source,
+        "other_frequencies": other_frequencies,
+        "taf_rows": taf_rows,
+        "taf_decoded_rows": taf_decoded_rows,
+        "taf_source_code": taf_source_code,
+        "taf_distance_km": round(taf_distance_km, 1) if taf_distance_km is not None else None,
+        "taf_distance_nm": round(taf_distance_nm, 1) if taf_distance_nm is not None else None,
+        "taf_direction": taf_direction,
+        "taf_fallback_used": taf_fallback_used,
+        "taf_summary_text": taf_summary_text,
+        "taf_updated_local": taf_updated_local,
+        "taf_updated_zulu": taf_updated_zulu,
+        "taf_age_text": taf_age_text,
+        "taf_age_color": taf_age_color,
+        "notam_rows": notam_recent_rows,
+        "notam_older_rows": notam_older_rows,
+        "sigmet_rows": sigmet_rows,
+        "fallback_used": fallback_used,
+        "report_generated_local": report_generated_local,
+    }
+
+
+def _prince_version() -> str | None:
+    if shutil.which("prince") is None:
+        return None
+    try:
+        result = subprocess.run(
+            ["prince", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    version_text = (result.stdout or result.stderr or "").strip()
+    return version_text if version_text else "Prince"
+
+
+def _query_bool(name: str, default: bool = True) -> bool:
+    raw = request.args.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+@app.route("/prince-status")
+def prince_status() -> Response:
+    version = _prince_version()
+    return jsonify(
+        {
+            "installed": version is not None,
+            "version": version,
+        }
     )
+
+
+@app.route("/print-report")
+def print_report() -> Response:
+    version = _prince_version()
+    if version is None:
+        return jsonify({"error": "Prince is not installed on this server."}), 503
+
+    selected_airport = request.args.get("airport", "CYAV")
+    context = build_conditions_context(selected_airport)
+    include_runway_freq = _query_bool("include_runway_freq", True)
+    include_metar = _query_bool("include_metar", True)
+    include_sigmet = _query_bool("include_sigmet", True)
+    include_taf = _query_bool("include_taf", True)
+    include_raw_taf = _query_bool("include_raw_taf", True)
+    include_notam = _query_bool("include_notam", True)
+
+    html = render_template(
+        "print_report.html",
+        **context,
+        include_runway_freq=include_runway_freq,
+        include_metar=include_metar,
+        include_sigmet=include_sigmet,
+        include_taf=include_taf,
+        include_raw_taf=include_raw_taf,
+        include_notam=include_notam,
+    )
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="flight-conditions-") as temp_dir:
+            temp_path = Path(temp_dir)
+            html_path = temp_path / "report.html"
+            pdf_path = temp_path / "report.pdf"
+            html_path.write_text(html, encoding="utf-8")
+
+            result = subprocess.run(
+                ["prince", str(html_path), "-o", str(pdf_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=45,
+            )
+            if result.returncode != 0 or not pdf_path.exists():
+                error_text = (result.stderr or result.stdout or "Prince failed to render PDF.").strip()
+                return jsonify({"error": error_text}), 500
+
+            pdf_bytes = pdf_path.read_bytes()
+    except (OSError, subprocess.SubprocessError) as exc:
+        return jsonify({"error": f"Unable to generate PDF: {exc}"}), 500
+
+    report_date = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+    filename = f"{context['selected_airport']} - {report_date}.pdf"
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=\"{filename}\"",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.route("/")
+def index() -> str:
+    context = build_conditions_context(request.args.get("airport", "CYAV"))
+    return render_template("index.html", **context)
 
 
 if __name__ == "__main__":

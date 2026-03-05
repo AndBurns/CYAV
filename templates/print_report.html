@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flight Conditions Report - {{ selected_airport }}</title>
+    <style>
+        @page {
+            size: Letter;
+            margin: 12mm;
+            @bottom-center {
+                content: "FlightInfo, (c) Vthree Inc. 2026.";
+                font-size: 8pt;
+                color: #2a5a85;
+            }
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            color: #0b2d4a;
+            margin: 0;
+            padding: 0;
+        }
+        h1, h2 {
+            margin: 0 0 6pt;
+            color: #05243d;
+        }
+        h1 { font-size: 15pt; }
+        h2 { font-size: 12pt; }
+        .report-meta {
+            margin-bottom: 10pt;
+            font-size: 9pt;
+            color: #1c4d72;
+        }
+        .top-layout {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+            margin-bottom: 10pt;
+        }
+        .left-column,
+        .right-column {
+            display: table-cell;
+            vertical-align: top;
+        }
+        .left-column {
+            width: 56%;
+            padding-right: 8pt;
+        }
+        .right-column {
+            width: 44%;
+            padding-left: 8pt;
+        }
+        .panel {
+            border: 1px solid #8cb7dc;
+            border-radius: 4px;
+            background: #eff7ff;
+            padding: 8pt;
+            margin-bottom: 8pt;
+            page-break-inside: avoid;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6pt;
+            background: #f8fcff;
+        }
+        th, td {
+            border: 1px solid #8cb7dc;
+            padding: 4pt;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: #d7ebff;
+            color: #093052;
+        }
+        .metar-age {
+            font-weight: 700;
+        }
+        .metar-age.green { color: green; }
+        .metar-age.orange { color: orange; }
+        .metar-age.red { color: red; }
+        .section-break {
+            page-break-before: auto;
+            page-break-inside: avoid;
+            margin-top: 8pt;
+        }
+        .advisory-text {
+            white-space: pre-wrap;
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+        .small-note {
+            font-size: 8.5pt;
+            color: #2a5a85;
+        }
+        .taf-tempo {
+            font-style: italic;
+        }
+        .taf-window-indent {
+            margin-left: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <h1>Flight Conditions: {{ selected_airport }}</h1>
+    <div class="report-meta">Generated: {{ report_generated_local }}</div>
+
+    {% if decoded %}
+        {% if include_runway_freq or include_metar %}
+        <div class="top-layout">
+            {% if include_runway_freq %}
+            <div class="left-column"{% if not include_metar %} style="width:100%; padding-right:0;"{% endif %}>
+                <section class="panel">
+                    <h2>{{ selected_airport }} Runway Wind Components</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Runway</th>
+                                <th>Heading</th>
+                                <th>Wind Angle</th>
+                                <th>Headwind / Tailwind</th>
+                                <th>Crosswind</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in runway_rows %}
+                                <tr>
+                                    <td>{{ row.runway }}</td>
+                                    <td>{{ row.heading }}°</td>
+                                    <td>{% if row.angle is not none %}{{ row.angle }}°{% else %}N/A{% endif %}</td>
+                                    <td>{% if row.headwind is not none %}{{ row.headwind }} kt{% else %}N/A{% endif %}</td>
+                                    <td>{% if row.crosswind is not none %}{{ row.crosswind }} kt {{ row.crosswind_side }}{% else %}N/A{% endif %}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <h2>Airport Operational Frequencies</h2>
+                    <table>
+                        <thead>
+                            <tr><th>Service</th><th>Frequency</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for freq in selected_airport_data.frequencies %}
+                                <tr><td>{{ freq.service }}</td><td>{{ freq.frequency }} MHz</td></tr>
+                            {% endfor %}
+                            {% if not selected_airport_data.frequencies %}
+                                <tr><td colspan="2">No operational frequencies available.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+            {% endif %}
+
+            {% if include_metar %}
+            <div class="right-column"{% if not include_runway_freq %} style="width:100%; padding-left:0;"{% endif %}>
+                <section class="panel">
+                    <h2>METAR - {{ metar_source_code }}</h2>
+                    <table>
+                        <tbody>
+                            <tr>
+                                <th>Reporting Airport</th>
+                                <td>{{ metar_source_code }}</td>
+                            </tr>
+                            <tr>
+                                <th>Source Feed</th>
+                                <td>{{ metar_provider }}</td>
+                            </tr>
+                            <tr>
+                                <th>Last Updated (Local)</th>
+                                <td>{{ decoded.observed_local }}</td>
+                            </tr>
+                            <tr>
+                                <th>METAR Age</th>
+                                <td><span class="metar-age{% if decoded.metar_age_color %} {{ decoded.metar_age_color }}{% endif %}">{{ decoded.metar_age }}</span></td>
+                            </tr>
+                            <tr><th>Wind</th><td>{{ decoded.wind }}</td></tr>
+                            <tr><th>Visibility</th><td>{{ decoded.visibility }}</td></tr>
+                            <tr><th>Temperature</th><td>{{ decoded.temperature }}</td></tr>
+                            <tr><th>Dewpoint</th><td>{{ decoded.dewpoint }}</td></tr>
+                            <tr><th>Altimeter</th><td>{{ decoded.altimeter }}</td></tr>
+                            <tr><th>Density Altitude</th><td>{{ decoded.density_altitude }}</td></tr>
+                            <tr><th>Ceiling</th><td>{{ decoded.ceiling }}</td></tr>
+                            <tr><th>Other</th><td>{{ decoded.other_weather }}</td></tr>
+                            <tr><th>Raw METAR</th><td>{{ decoded.raw }}</td></tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if include_sigmet %}
+        <section class="panel section-break">
+            <h2>SIGMET</h2>
+            <table>
+                <thead>
+                    <tr><th>Location</th><th>Start</th><th>End</th><th>Text</th></tr>
+                </thead>
+                <tbody>
+                    {% for row in sigmet_rows %}
+                        <tr>
+                            <td>{{ row.location }}</td>
+                            <td>{{ row.start_local }}</td>
+                            <td>{{ row.end_local }}</td>
+                            <td><pre class="advisory-text">{{ row.text }}</pre></td>
+                        </tr>
+                    {% endfor %}
+                    {% if not sigmet_rows %}
+                        <tr><td colspan="4">No SIGMET records returned for this airport.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
+        {% if include_taf %}
+        <section class="panel section-break">
+            <h2>TAF</h2>
+            <div class="small-note">{{ taf_summary_text }}</div>
+            {% if taf_updated_local != "N/A" %}
+                <div class="small-note">Updated: {{ taf_updated_local }} ({{ taf_age_text }})</div>
+            {% endif %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Forecast Window</th>
+                        <th>Wind</th>
+                        <th>Visibility</th>
+                        <th>Clouds</th>
+                        <th>Other</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in taf_decoded_rows %}
+                        <tr>
+                            <td>
+                                {% if row.is_tempo %}
+                                    <span class="taf-tempo">Temporary</span><br>
+                                {% endif %}
+                                <span{% if row.is_tempo %} class="taf-window-indent"{% endif %}>
+                                    {% if row.window_day %}{{ row.window_day }} {% endif %}{{ row.window_line }}
+                                </span>
+                            </td>
+                            <td>{{ row.wind }}</td>
+                            <td>{{ row.visibility }}</td>
+                            <td>{{ row.clouds }}</td>
+                            <td>{{ row.other }}</td>
+                        </tr>
+                    {% endfor %}
+                    {% if not taf_decoded_rows %}
+                        <tr><td colspan="5">No TAF records returned for this airport.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            {% if include_raw_taf %}
+            <h2>Raw TAF</h2>
+            {% if taf_rows %}
+                {% for raw_taf in taf_rows %}
+                    <pre class="advisory-text">{{ raw_taf.text }}</pre>
+                {% endfor %}
+            {% else %}
+                <p>No raw TAF available.</p>
+            {% endif %}
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if include_notam %}
+        <section class="panel section-break">
+            <h2>NOTAM</h2>
+            <table>
+                <thead>
+                    <tr><th>Location</th><th>Start</th><th>End</th><th>Text</th></tr>
+                </thead>
+                <tbody>
+                    {% for row in notam_rows %}
+                        <tr>
+                            <td>{{ row.location }}</td>
+                            <td>{{ row.start_local }}</td>
+                            <td>{{ row.end_local }}</td>
+                            <td><pre class="advisory-text">{{ row.text }}</pre></td>
+                        </tr>
+                    {% endfor %}
+                    {% for row in notam_older_rows %}
+                        <tr>
+                            <td>{{ row.location }}</td>
+                            <td>{{ row.start_local }}</td>
+                            <td>{{ row.end_local }}</td>
+                            <td><pre class="advisory-text">{{ row.text }}</pre></td>
+                        </tr>
+                    {% endfor %}
+                    {% if not notam_rows and not notam_older_rows %}
+                        <tr><td colspan="4">No NOTAM records returned for this airport.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+        {% endif %}
+
+        {% if not include_runway_freq and not include_metar and not include_sigmet and not include_taf and not include_notam %}
+        <section class="panel">
+            <h2>Flight Conditions</h2>
+            <p>No report sections were selected for this print job.</p>
+        </section>
+        {% endif %}
+    {% else %}
+        <section class="panel">
+            <h2>Flight Conditions</h2>
+            <p>No recent METAR data is available for {{ selected_airport }}.</p>
+        </section>
+    {% endif %}
+</body>
+</html>

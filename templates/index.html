@@ -28,12 +28,118 @@
             align-items: flex-end;
             gap: 0.35rem;
         }
+        .header-actions {
+            display: flex;
+            align-items: stretch;
+            gap: 0.45rem;
+        }
+        .header-actions .btn,
+        .hamburger-btn {
+            height: 2.05rem;
+            box-sizing: border-box;
+        }
+        .header-actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
         .refresh-btn {
             background: #0e3a60;
             border-color: #0a2c49;
         }
         .refresh-btn:hover {
             background: #124a79;
+        }
+        .hamburger-wrap {
+            position: relative;
+            display: flex;
+            align-items: stretch;
+        }
+        .hamburger-btn {
+            display: inline-flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            width: 2.2rem;
+            height: 2rem;
+            padding: 0.35rem;
+            border: 1px solid #1f5f8b;
+            background: #2a7bb2;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0;
+        }
+        .hamburger-btn:hover {
+            background: #236b9c;
+        }
+        .hamburger-line {
+            width: 100%;
+            height: 2px;
+            background: #fff;
+            border-radius: 2px;
+        }
+        .hamburger-menu {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 0.35rem);
+            min-width: 170px;
+            border: 1px solid #6d9fcd;
+            border-radius: 4px;
+            background: #f8fcff;
+            box-shadow: 0 4px 12px rgba(5, 36, 61, 0.2);
+            padding: 0.3rem;
+            z-index: 50;
+        }
+        .hamburger-menu[hidden] {
+            display: none;
+        }
+        .hamburger-item {
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: transparent;
+            color: #0b2d4a;
+            padding: 0.42rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .hamburger-item:hover {
+            background: #dcefff;
+        }
+        .cookie-banner {
+            position: fixed;
+            left: 1rem;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 70;
+            border: 1px solid #6d9fcd;
+            border-radius: 6px;
+            background: #f8fcff;
+            box-shadow: 0 4px 14px rgba(5, 36, 61, 0.25);
+            padding: 0.75rem;
+        }
+        .cookie-banner[hidden] {
+            display: none;
+        }
+        .cookie-banner-title {
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+        }
+        .cookie-banner-text {
+            font-size: 0.85rem;
+            margin: 0;
+            color: #1b4a74;
+        }
+        .cookie-banner-actions {
+            display: flex;
+            gap: 0.45rem;
+            justify-content: flex-end;
+            margin-top: 0.55rem;
+            flex-wrap: wrap;
         }
         .refresh-timer {
             font-size: 0.78rem;
@@ -274,6 +380,139 @@
         #raw-popup::backdrop {
             background: rgba(8, 34, 58, 0.45);
         }
+        #prince-popup {
+            border: 1px solid #6d9fcd;
+            border-radius: 6px;
+            padding: 0.85rem;
+            max-width: 520px;
+            width: min(90vw, 520px);
+            background: #f8fcff;
+        }
+        #prince-popup::backdrop {
+            background: rgba(8, 34, 58, 0.45);
+        }
+        #about-popup {
+            border: 1px solid #6d9fcd;
+            border-radius: 6px;
+            padding: 0.85rem;
+            max-width: 620px;
+            width: min(90vw, 620px);
+            background: #f8fcff;
+        }
+        #about-popup::backdrop {
+            background: rgba(8, 34, 58, 0.45);
+        }
+        #print-options-popup {
+            border: 1px solid #6d9fcd;
+            border-radius: 6px;
+            padding: 0.85rem;
+            max-width: 520px;
+            width: min(90vw, 520px);
+            background: #f8fcff;
+        }
+        #print-options-popup::backdrop {
+            background: rgba(8, 34, 58, 0.45);
+        }
+        #privacy-popup {
+            border: 1px solid #6d9fcd;
+            border-radius: 6px;
+            padding: 0.85rem;
+            max-width: 760px;
+            width: min(94vw, 760px);
+            background: #f8fcff;
+        }
+        #privacy-popup::backdrop {
+            background: rgba(8, 34, 58, 0.45);
+        }
+        .privacy-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.6rem 0;
+        }
+        .privacy-table th,
+        .privacy-table td {
+            border: 1px solid #8cb7dc;
+            padding: 0.45rem;
+            vertical-align: top;
+            font-size: 0.85rem;
+        }
+        .retention-status {
+            display: inline-block;
+            padding: 0.15rem 0.45rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .retention-status.on {
+            background: #d6f3df;
+            color: #18603a;
+            border: 1px solid #8fd5a8;
+        }
+        .retention-status.off {
+            background: #eceff3;
+            color: #5d6875;
+            border: 1px solid #c7ced7;
+        }
+        .cookie-toggle {
+            position: relative;
+            display: inline-block;
+            width: 42px;
+            height: 22px;
+        }
+        .cookie-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .cookie-toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #a8b0ba;
+            transition: 0.2s;
+            border-radius: 22px;
+        }
+        .cookie-toggle-slider::before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.2s;
+            border-radius: 50%;
+        }
+        .cookie-toggle input:checked + .cookie-toggle-slider {
+            background-color: #2f9b58;
+        }
+        .cookie-toggle input:checked + .cookie-toggle-slider::before {
+            transform: translateX(20px);
+        }
+        .cookie-toggle input:disabled + .cookie-toggle-slider {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .privacy-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 0.75rem;
+        }
+        .print-options-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.35rem;
+            margin: 0.5rem 0 0.8rem;
+        }
+        .print-options-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
         .time-cell-local { display: block; }
         .time-zulu details { margin-top: 0.15rem; }
         .time-zulu summary {
@@ -297,6 +536,12 @@
             white-space: pre-wrap;
             font-size: 0.85rem;
             margin: 0;
+        }
+        .about-text {
+            white-space: normal;
+            font-size: 0.85rem;
+            margin: 0 0 0.45rem;
+            text-align: left;
         }
         .btn {
             display: inline-block;
@@ -333,7 +578,21 @@
     <div class="page-header">
         <h1>Flight Conditions: {{ selected_airport }}</h1>
         <div class="refresh-controls">
-            <button id="refresh-btn" class="btn refresh-btn" type="button">Refresh</button>
+            <div class="header-actions">
+                <button id="refresh-btn" class="btn refresh-btn" type="button">Refresh</button>
+                <div class="hamburger-wrap">
+                    <button id="hamburger-btn" class="hamburger-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="hamburger-menu" aria-label="Open menu">
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                        <span class="hamburger-line"></span>
+                    </button>
+                    <div id="hamburger-menu" class="hamburger-menu" role="menu" hidden>
+                        <button id="menu-print-btn" class="hamburger-item" type="button" role="menuitem">Print Report (PDF)</button>
+                        <button id="menu-about-btn" class="hamburger-item" type="button" role="menuitem">About</button>
+                        <button id="menu-privacy-btn" class="hamburger-item" type="button" role="menuitem">Privacy &amp; Cookies</button>
+                    </div>
+                </div>
+            </div>
             <span id="refresh-timer" class="refresh-timer">Last refreshed: just now</span>
         </div>
     </div>
@@ -687,6 +946,105 @@
         <button type="button" id="raw-popup-close" class="btn">Close</button>
     </dialog>
 
+    <dialog id="prince-popup">
+        <h3>Prince Not Installed</h3>
+        <p id="prince-popup-message" class="advisory-text">Prince HTML to PDF is not installed on this server.</p>
+        <button type="button" id="prince-popup-close" class="btn">Close</button>
+    </dialog>
+
+    <dialog id="about-popup">
+        <h3>About FlightInfo</h3>
+        <p class="about-text">FlightInfo uses publicly available information including weather (METAR and TAF), SIGMET, and NOTAM information from NAV CANADA and U.S. AviationWeather.gov services.</p>
+        <p class="about-text">Print-to-PDF functionality uses a non-commercial version of Prince XML.</p>
+        <p class="about-text">This application currently uses custom responsive CSS for smaller screens.</p>
+        <button type="button" id="about-popup-close" class="btn">Close</button>
+    </dialog>
+
+    <dialog id="privacy-popup">
+        <h3>Privacy &amp; Cookies</h3>
+        <p class="advisory-text">This app does not set first-party tracking cookies. It uses browser local storage for optional preference features when you consent.</p>
+        <table class="privacy-table">
+            <thead>
+                <tr><th>Storage Item</th><th>Purpose</th><th>Type</th><th>Retention</th><th>Status</th><th>Control</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>cyav-consent-v1</td>
+                    <td>Stores your privacy consent choice</td>
+                    <td>Strictly necessary</td>
+                    <td>Until changed</td>
+                    <td><span id="status-consent" class="retention-status on">Retained</span></td>
+                    <td>
+                        <label class="cookie-toggle" title="Required for consent tracking">
+                            <input type="checkbox" id="pref-consent" checked disabled>
+                            <span class="cookie-toggle-slider"></span>
+                        </label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>cyav-recent-airports</td>
+                    <td>Saves recently selected airports for convenience</td>
+                    <td>Preferences (optional)</td>
+                    <td>Most recent 5</td>
+                    <td><span id="status-recent" class="retention-status off">Not retained</span></td>
+                    <td>
+                        <label class="cookie-toggle">
+                            <input type="checkbox" id="pref-recent-airports">
+                            <span class="cookie-toggle-slider"></span>
+                        </label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>cyav-print-options-v1</td>
+                    <td>Saves PDF section selections for print jobs</td>
+                    <td>Preferences (optional)</td>
+                    <td>Most Recent</td>
+                    <td><span id="status-print" class="retention-status off">Not retained</span></td>
+                    <td>
+                        <label class="cookie-toggle">
+                            <input type="checkbox" id="pref-print-options">
+                            <span class="cookie-toggle-slider"></span>
+                        </label>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="advisory-text">Third-party content delivery networks may apply their own policies outside this application.</p>
+        <div class="privacy-actions">
+            <button type="button" id="privacy-reject" class="btn">Reject Optional</button>
+            <button type="button" id="privacy-accept" class="btn">Accept Optional</button>
+            <button type="button" id="privacy-save" class="btn">Save Choices</button>
+            <button type="button" id="privacy-close" class="btn">Close</button>
+        </div>
+    </dialog>
+
+    <dialog id="print-options-popup">
+        <h3>Print Options</h3>
+        <p class="advisory-text">Choose which sections to include in the PDF report.</p>
+        <div class="print-options-list">
+            <label><input type="checkbox" id="opt-runway-freq" checked> Runway + Frequencies</label>
+            <label><input type="checkbox" id="opt-metar" checked> METAR</label>
+            <label><input type="checkbox" id="opt-sigmet" checked> SIGMET</label>
+            <label><input type="checkbox" id="opt-taf" checked> TAF</label>            
+            <label><input type="checkbox" id="opt-notam" checked> NOTAM</label>
+            <label><input type="checkbox" id="opt-raw-taf" checked> Raw TAF</label>
+        </div>
+        <div class="print-options-actions">
+            <button type="button" id="print-options-cancel" class="btn">Cancel</button>
+            <button type="button" id="print-options-confirm" class="btn">Generate PDF</button>
+        </div>
+    </dialog>
+
+    <div id="cookie-banner" class="cookie-banner" hidden>
+        <div class="cookie-banner-title">Privacy settings</div>
+        <p class="cookie-banner-text">FlightInfo uses no first-party tracking cookies. Optional local storage is used only for convenience features (recent airports and print preferences).</p>
+        <div class="cookie-banner-actions">
+            <button id="cookie-manage" type="button" class="btn">Manage</button>
+            <button id="cookie-reject" type="button" class="btn">Reject Optional</button>
+            <button id="cookie-accept" type="button" class="btn">Accept Optional</button>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
@@ -706,11 +1064,227 @@
             }
 
             const refreshBtn = document.getElementById("refresh-btn");
+            const hamburgerBtn = document.getElementById("hamburger-btn");
+            const hamburgerMenu = document.getElementById("hamburger-menu");
+            const menuPrintBtn = document.getElementById("menu-print-btn");
+            const menuAboutBtn = document.getElementById("menu-about-btn");
+            const menuPrivacyBtn = document.getElementById("menu-privacy-btn");
             const refreshTimer = document.getElementById("refresh-timer");
             const rawPopup = document.getElementById("raw-popup");
             const rawPopupContent = document.getElementById("raw-popup-content");
             const rawPopupClose = document.getElementById("raw-popup-close");
+            const princePopup = document.getElementById("prince-popup");
+            const princePopupMessage = document.getElementById("prince-popup-message");
+            const princePopupClose = document.getElementById("prince-popup-close");
+            const aboutPopup = document.getElementById("about-popup");
+            const aboutPopupClose = document.getElementById("about-popup-close");
+            const printOptionsPopup = document.getElementById("print-options-popup");
+            const printOptionsCancel = document.getElementById("print-options-cancel");
+            const printOptionsConfirm = document.getElementById("print-options-confirm");
+            const printOptionsStorageKey = "cyav-print-options-v1";
+            const consentStorageKey = "cyav-consent-v1";
+            const cookieBanner = document.getElementById("cookie-banner");
+            const cookieAccept = document.getElementById("cookie-accept");
+            const cookieReject = document.getElementById("cookie-reject");
+            const cookieManage = document.getElementById("cookie-manage");
+            const privacyPopup = document.getElementById("privacy-popup");
+            const privacyAccept = document.getElementById("privacy-accept");
+            const privacyReject = document.getElementById("privacy-reject");
+            const privacySave = document.getElementById("privacy-save");
+            const privacyClose = document.getElementById("privacy-close");
+            const prefRecentAirports = document.getElementById("pref-recent-airports");
+            const prefPrintOptions = document.getElementById("pref-print-options");
+            const statusRecent = document.getElementById("status-recent");
+            const statusPrint = document.getElementById("status-print");
             let startEpoch = Date.now();
+
+            const cookiePrefsStorageKey = "cyav-cookie-preferences-v1";
+
+            function getConsentStatus() {
+                const raw = window.localStorage.getItem(consentStorageKey);
+                if (raw === "accepted" || raw === "rejected") {
+                    return raw;
+                }
+                return "unset";
+            }
+
+            function getDefaultCookiePrefs() {
+                return {
+                    recent_airports: false,
+                    print_options: false
+                };
+            }
+
+            function setConsentStatus(status) {
+                window.localStorage.setItem(consentStorageKey, status);
+            }
+
+            function getCookiePrefs() {
+                const defaults = getDefaultCookiePrefs();
+                try {
+                    const raw = window.localStorage.getItem(cookiePrefsStorageKey);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && typeof parsed === "object") {
+                            return {
+                                recent_airports: parsed.recent_airports === true,
+                                print_options: parsed.print_options === true
+                            };
+                        }
+                    }
+                } catch {
+                }
+
+                const consent = getConsentStatus();
+                if (consent === "accepted") {
+                    return {
+                        recent_airports: true,
+                        print_options: true
+                    };
+                }
+                return defaults;
+            }
+
+            function setCookiePrefs(prefs) {
+                window.localStorage.setItem(cookiePrefsStorageKey, JSON.stringify({
+                    recent_airports: prefs.recent_airports === true,
+                    print_options: prefs.print_options === true
+                }));
+            }
+
+            function canUseStorage(prefKey) {
+                const prefs = getCookiePrefs();
+                return prefs[prefKey] === true;
+            }
+
+            function clearStorageForDisabledPrefs(prefs) {
+                if (!prefs.recent_airports) {
+                    window.localStorage.removeItem(storageKey);
+                }
+                if (!prefs.print_options) {
+                    window.localStorage.removeItem(printOptionsStorageKey);
+                }
+            }
+
+            function updateRetentionIndicator(element, isOn) {
+                if (!element) {
+                    return;
+                }
+                element.textContent = isOn ? "Retained" : "Not retained";
+                element.classList.toggle("on", isOn);
+                element.classList.toggle("off", !isOn);
+            }
+
+            function syncPrivacyUiFromPrefs() {
+                const prefs = getCookiePrefs();
+                if (prefRecentAirports instanceof HTMLInputElement) {
+                    prefRecentAirports.checked = prefs.recent_airports;
+                }
+                if (prefPrintOptions instanceof HTMLInputElement) {
+                    prefPrintOptions.checked = prefs.print_options;
+                }
+                updateRetentionIndicator(statusRecent, prefs.recent_airports);
+                updateRetentionIndicator(statusPrint, prefs.print_options);
+            }
+
+            function refreshConsentUi() {
+                if (!cookieBanner) {
+                    return;
+                }
+                cookieBanner.hidden = getConsentStatus() !== "unset";
+            }
+
+            function closeHamburgerMenu() {
+                if (!hamburgerMenu || !hamburgerBtn) {
+                    return;
+                }
+                hamburgerMenu.hidden = true;
+                hamburgerBtn.setAttribute("aria-expanded", "false");
+            }
+
+            function toggleHamburgerMenu() {
+                if (!hamburgerMenu || !hamburgerBtn) {
+                    return;
+                }
+                const isOpen = !hamburgerMenu.hidden;
+                hamburgerMenu.hidden = isOpen;
+                hamburgerBtn.setAttribute("aria-expanded", isOpen ? "false" : "true");
+            }
+
+            const printOptionInputs = {
+                include_runway_freq: document.getElementById("opt-runway-freq"),
+                include_metar: document.getElementById("opt-metar"),
+                include_sigmet: document.getElementById("opt-sigmet"),
+                include_taf: document.getElementById("opt-taf"),
+                include_raw_taf: document.getElementById("opt-raw-taf"),
+                include_notam: document.getElementById("opt-notam")
+            };
+
+            function getDefaultPrintOptions() {
+                return {
+                    include_runway_freq: true,
+                    include_metar: true,
+                    include_sigmet: true,
+                    include_taf: true,
+                    include_raw_taf: true,
+                    include_notam: true
+                };
+            }
+
+            function loadPrintOptions() {
+                const defaults = getDefaultPrintOptions();
+                if (!canUseStorage("print_options")) {
+                    return defaults;
+                }
+                try {
+                    const raw = window.localStorage.getItem(printOptionsStorageKey);
+                    if (!raw) {
+                        return defaults;
+                    }
+                    const parsed = JSON.parse(raw);
+                    if (!parsed || typeof parsed !== "object") {
+                        return defaults;
+                    }
+                    return {
+                        include_runway_freq: parsed.include_runway_freq !== false,
+                        include_metar: parsed.include_metar !== false,
+                        include_sigmet: parsed.include_sigmet !== false,
+                        include_taf: parsed.include_taf !== false,
+                        include_raw_taf: parsed.include_raw_taf !== false,
+                        include_notam: parsed.include_notam !== false
+                    };
+                } catch {
+                    return defaults;
+                }
+            }
+
+            function savePrintOptions(options) {
+                if (!canUseStorage("print_options")) {
+                    return;
+                }
+                window.localStorage.setItem(printOptionsStorageKey, JSON.stringify(options));
+            }
+
+            function applyPrintOptionsToUi(options) {
+                Object.entries(printOptionInputs).forEach(([key, input]) => {
+                    if (input instanceof HTMLInputElement) {
+                        input.checked = Boolean(options[key]);
+                    }
+                });
+            }
+
+            function readPrintOptionsFromUi() {
+                const options = getDefaultPrintOptions();
+                Object.entries(printOptionInputs).forEach(([key, input]) => {
+                    if (input instanceof HTMLInputElement) {
+                        options[key] = input.checked;
+                    }
+                });
+                if (!options.include_taf) {
+                    options.include_raw_taf = false;
+                }
+                return options;
+            }
 
             function formatElapsed(seconds) {
                 if (seconds < 60) {
@@ -740,6 +1314,223 @@
                         return;
                     }
                     form.submit();
+                });
+            }
+
+            if (princePopup && princePopupClose) {
+                princePopupClose.addEventListener("click", () => {
+                    princePopup.close();
+                });
+            }
+
+            if (aboutPopup && aboutPopupClose) {
+                aboutPopupClose.addEventListener("click", () => {
+                    aboutPopup.close();
+                });
+            }
+
+            if (printOptionsPopup && printOptionsCancel) {
+                printOptionsCancel.addEventListener("click", () => {
+                    printOptionsPopup.close();
+                });
+            }
+
+            if (privacyPopup && privacyClose) {
+                privacyClose.addEventListener("click", () => {
+                    privacyPopup.close();
+                });
+            }
+
+            if (cookieManage) {
+                cookieManage.addEventListener("click", () => {
+                    syncPrivacyUiFromPrefs();
+                    if (privacyPopup && typeof privacyPopup.showModal === "function") {
+                        privacyPopup.showModal();
+                    }
+                });
+            }
+
+            function acceptOptionalStorage() {
+                const prefs = { recent_airports: true, print_options: true };
+                setCookiePrefs(prefs);
+                setConsentStatus("accepted");
+                syncPrivacyUiFromPrefs();
+                refreshConsentUi();
+            }
+
+            function rejectOptionalStorage() {
+                const prefs = { recent_airports: false, print_options: false };
+                setCookiePrefs(prefs);
+                setConsentStatus("rejected");
+                clearStorageForDisabledPrefs(prefs);
+                renderRecentAirports();
+                syncPrivacyUiFromPrefs();
+                refreshConsentUi();
+            }
+
+            if (cookieAccept) {
+                cookieAccept.addEventListener("click", acceptOptionalStorage);
+            }
+
+            if (cookieReject) {
+                cookieReject.addEventListener("click", rejectOptionalStorage);
+            }
+
+            if (privacyAccept) {
+                privacyAccept.addEventListener("click", () => {
+                    acceptOptionalStorage();
+                    if (privacyPopup) {
+                        privacyPopup.close();
+                    }
+                });
+            }
+
+            if (privacyReject) {
+                privacyReject.addEventListener("click", () => {
+                    rejectOptionalStorage();
+                    if (privacyPopup) {
+                        privacyPopup.close();
+                    }
+                });
+            }
+
+            if (privacySave) {
+                privacySave.addEventListener("click", () => {
+                    const prefs = {
+                        recent_airports: prefRecentAirports instanceof HTMLInputElement ? prefRecentAirports.checked : false,
+                        print_options: prefPrintOptions instanceof HTMLInputElement ? prefPrintOptions.checked : false
+                    };
+                    setCookiePrefs(prefs);
+                    const status = prefs.recent_airports || prefs.print_options ? "custom" : "rejected";
+                    setConsentStatus(status);
+                    clearStorageForDisabledPrefs(prefs);
+                    renderRecentAirports();
+                    syncPrivacyUiFromPrefs();
+                    refreshConsentUi();
+                    if (privacyPopup) {
+                        privacyPopup.close();
+                    }
+                });
+            }
+
+            if (prefRecentAirports instanceof HTMLInputElement) {
+                prefRecentAirports.addEventListener("change", () => {
+                    updateRetentionIndicator(statusRecent, prefRecentAirports.checked);
+                });
+            }
+
+            if (prefPrintOptions instanceof HTMLInputElement) {
+                prefPrintOptions.addEventListener("change", () => {
+                    updateRetentionIndicator(statusPrint, prefPrintOptions.checked);
+                });
+            }
+
+            if (printOptionInputs.include_taf instanceof HTMLInputElement && printOptionInputs.include_raw_taf instanceof HTMLInputElement) {
+                printOptionInputs.include_taf.addEventListener("change", () => {
+                    if (!printOptionInputs.include_taf.checked) {
+                        printOptionInputs.include_raw_taf.checked = false;
+                    }
+                    printOptionInputs.include_raw_taf.disabled = !printOptionInputs.include_taf.checked;
+                });
+            }
+
+            async function openPrintReport(options) {
+                    try {
+                        const statusResponse = await fetch("/prince-status", { cache: "no-store" });
+                        if (!statusResponse.ok) {
+                            throw new Error("Unable to validate Prince installation.");
+                        }
+                        const statusData = await statusResponse.json();
+                        if (!statusData.installed) {
+                            if (princePopupMessage) {
+                                princePopupMessage.textContent = "Prince HTML to PDF is not installed on this server.";
+                            }
+                            if (princePopup && typeof princePopup.showModal === "function") {
+                                princePopup.showModal();
+                            }
+                            return;
+                        }
+
+                        const airportCode = airportSelect.value || "CYAV";
+                        const params = new URLSearchParams({
+                            airport: airportCode,
+                            include_runway_freq: String(options.include_runway_freq),
+                            include_metar: String(options.include_metar),
+                            include_sigmet: String(options.include_sigmet),
+                            include_taf: String(options.include_taf),
+                            include_raw_taf: String(options.include_raw_taf),
+                            include_notam: String(options.include_notam)
+                        });
+                        const printUrl = `/print-report?${params.toString()}`;
+                        window.open(printUrl, "_blank", "noopener,noreferrer");
+                    } catch (error) {
+                        if (princePopupMessage) {
+                            princePopupMessage.textContent = "Unable to verify Prince availability. Please try again.";
+                        }
+                        if (princePopup && typeof princePopup.showModal === "function") {
+                            princePopup.showModal();
+                        }
+                    }
+            }
+
+            if (hamburgerBtn) {
+                hamburgerBtn.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    toggleHamburgerMenu();
+                });
+            }
+
+            if (hamburgerMenu) {
+                hamburgerMenu.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                });
+            }
+
+            document.addEventListener("click", () => {
+                closeHamburgerMenu();
+            });
+
+            if (menuPrintBtn) {
+                menuPrintBtn.addEventListener("click", () => {
+                    closeHamburgerMenu();
+                    const saved = loadPrintOptions();
+                    applyPrintOptionsToUi(saved);
+                    if (printOptionInputs.include_raw_taf instanceof HTMLInputElement) {
+                        printOptionInputs.include_raw_taf.disabled = !saved.include_taf;
+                    }
+                    if (printOptionsPopup && typeof printOptionsPopup.showModal === "function") {
+                        printOptionsPopup.showModal();
+                    }
+                });
+            }
+
+            if (printOptionsConfirm) {
+                printOptionsConfirm.addEventListener("click", async () => {
+                    const options = readPrintOptionsFromUi();
+                    savePrintOptions(options);
+                    if (printOptionsPopup) {
+                        printOptionsPopup.close();
+                    }
+                    await openPrintReport(options);
+                });
+            }
+
+            if (menuAboutBtn) {
+                menuAboutBtn.addEventListener("click", () => {
+                    closeHamburgerMenu();
+                    if (aboutPopup && typeof aboutPopup.showModal === "function") {
+                        aboutPopup.showModal();
+                    }
+                });
+            }
+
+            if (menuPrivacyBtn) {
+                menuPrivacyBtn.addEventListener("click", () => {
+                    closeHamburgerMenu();
+                    syncPrivacyUiFromPrefs();
+                    if (privacyPopup && typeof privacyPopup.showModal === "function") {
+                        privacyPopup.showModal();
+                    }
                 });
             }
 
@@ -783,6 +1574,9 @@
             }
 
             function loadRecentAirports() {
+                if (!canUseStorage("recent_airports")) {
+                    return [];
+                }
                 try {
                     const raw = window.localStorage.getItem(storageKey);
                     if (!raw) {
@@ -800,6 +1594,9 @@
 
             function saveRecentAirports(values) {
                 const normalized = normalizeRecentList(values);
+                if (!canUseStorage("recent_airports")) {
+                    return normalized;
+                }
                 window.localStorage.setItem(storageKey, JSON.stringify(normalized));
                 return normalized;
             }
@@ -836,6 +1633,8 @@
             }
 
             renderRecentAirports();
+            syncPrivacyUiFromPrefs();
+            refreshConsentUi();
 
             const $airportSelect = window.jQuery(airportSelect);
             $airportSelect.select2({

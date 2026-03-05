@@ -8,11 +8,15 @@ Simple Flask app to:
 - Show METAR age with color status (green <3h, orange 3-6h, red >6h)
 - Show density altitude when temperature, altimeter, and airport elevation are available
 - Show collapsible NAV CANADA TAF / NOTAM / SIGMET sections
-- Show available runways for that airport
+- Show all available runways for that airport
 - Calculate headwind/tailwind and crosswind for each runway
-- Highlight the preferred runway (non-negative headwind + smallest crosswind)
+- Highlight the computed best runway and allow client-side runway filtering/isolation
 - Fall back to the nearest station with an available METAR when the selected airport has none,
   and show the distance to that station
+- Provide a top-right hamburger menu with Print and About actions
+- Generate a Prince XML PDF report from a print-options modal (with per-section include toggles)
+- Persist optional preferences (recent airports and print options) via privacy-controlled localStorage
+- Show Privacy & Cookies controls with accept/reject and per-item retention toggles
 
 The page uses a responsive layout:
 - Left side: runway wind components
@@ -21,7 +25,7 @@ The page uses a responsive layout:
 Airport selector behavior:
 - No load button required; the page refreshes automatically when selection changes
 - Search is built into the airport dropdown (Select2) and focuses automatically when opened
-- Recent selections are stored in browser localStorage (client-side)
+- Recent selections and print options are stored in browser localStorage only when optional storage is enabled
 
 ## Run locally
 
@@ -47,3 +51,5 @@ Airport selector behavior:
 - METAR data sources: AviationWeather API (`aviationweather.gov`) with NAV CANADA Weather Recall (`plan.navcanada.ca`) fallback for station LWIS/METAR coverage
 - Runway data source: OurAirports (`runways.csv`) with automatic local fallback from `app.py` if online data is unavailable
 - Frequency data source: OurAirports (`airport-frequencies.csv`) with automatic local fallback from `app.py` if online data is unavailable
+- PDF generation: Prince XML CLI (`prince`) must be installed on the server; app checks availability before opening print flow
+- This app does not set first-party tracking cookies; it uses localStorage for consent state and optional preference retention
