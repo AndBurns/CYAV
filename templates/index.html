@@ -270,8 +270,17 @@
             font-weight: 700;
         }
         .metar-age.green { color: green; }
+        .metar-age.blue { color: blue; }
         .metar-age.orange { color: orange; }
         .metar-age.red { color: red; }
+        .metar-age.magenta { color: magenta; }
+        .flight-cat {
+            font-weight: 700;
+        }
+        .flight-cat.green { color: green; }
+        .flight-cat.blue { color: blue; }
+        .flight-cat.red { color: red; }
+        .flight-cat.magenta { color: magenta; }
         .reporting-station-diff {
             color: orange;
             font-weight: 700;
@@ -597,7 +606,7 @@
         </div>
     </div>
 
-    <form method="get" action="/" id="airport-form">
+    <form method="get" action="{{ url_for('index') }}" id="airport-form">
         <div class="selector-row">
             <label for="airport">Airport:</label>
             <div class="airport-select-row">
@@ -759,6 +768,16 @@
                             </td>
                         </tr>
                         <tr>
+                            <td>
+                                <span class="metar-cell-label">Flight Category</span>
+                                <span class="metar-cell-value flight-cat{% if decoded.flight_category_color %} {{ decoded.flight_category_color }}{% endif %}">{{ decoded.flight_category_label }}</span>
+                            </td>
+                            <td>
+                                <span class="metar-cell-label">Category Concept</span>
+                                <span class="metar-cell-value">{{ decoded.flight_category_concept }}</span>
+                            </td>
+                        </tr>
+                        <tr>
                             <td><span class="metar-cell-label">Wind</span><span class="metar-cell-value">{{ decoded.wind }}</span></td>
                             <td><span class="metar-cell-label">Visibility</span><span class="metar-cell-value">{{ decoded.visibility }}</span></td>
                         </tr>
@@ -788,7 +807,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th colspan="5">
+                                <th colspan="6">
                                     <div class="taf-header-row">
                                         <span class="taf-header-left">
                                             <span class="taf-header-main">{{ selected_airport }} TAF</span>
@@ -807,6 +826,7 @@
                             </tr>
                             <tr>
                                 <th class="taf-window-col">Forecast Window</th>
+                                <th>Category</th>
                                 <th class="taf-wind-col">Wind</th>
                                 <th class="taf-visibility-col">Visibility</th>
                                 <th>Clouds (AGL)</th>
@@ -835,6 +855,7 @@
                                             </span>
                                         {% endif %}
                                     </td>
+                                    <td><span class="flight-cat{% if row.flight_category_color %} {{ row.flight_category_color }}{% endif %}">{{ row.flight_category_label }}</span></td>
                                     <td>{{ row.wind }}</td>
                                     <td>{{ row.visibility }}</td>
                                     <td>{{ row.clouds }}</td>
@@ -848,7 +869,7 @@
                                 </tr>
                             {% endfor %}
                             {% if not taf_decoded_rows %}
-                                <tr><td colspan="5">No TAF records returned for this airport.</td></tr>
+                                <tr><td colspan="6">No TAF records returned for this airport.</td></tr>
                             {% endif %}
                         </tbody>
                     </table>
@@ -1096,6 +1117,8 @@
             const prefPrintOptions = document.getElementById("pref-print-options");
             const statusRecent = document.getElementById("status-recent");
             const statusPrint = document.getElementById("status-print");
+            const princeStatusUrl = {{ url_for('prince_status')|tojson }};
+            const printReportUrl = {{ url_for('print_report')|tojson }};
             let startEpoch = Date.now();
 
             const cookiePrefsStorageKey = "cyav-cookie-preferences-v1";
@@ -1436,7 +1459,7 @@
 
             async function openPrintReport(options) {
                     try {
-                        const statusResponse = await fetch("/prince-status", { cache: "no-store" });
+                        const statusResponse = await fetch(princeStatusUrl, { cache: "no-store" });
                         if (!statusResponse.ok) {
                             throw new Error("Unable to validate Prince installation.");
                         }
@@ -1461,7 +1484,7 @@
                             include_raw_taf: String(options.include_raw_taf),
                             include_notam: String(options.include_notam)
                         });
-                        const printUrl = `/print-report?${params.toString()}`;
+                        const printUrl = `${printReportUrl}?${params.toString()}`;
                         window.open(printUrl, "_blank", "noopener,noreferrer");
                     } catch (error) {
                         if (princePopupMessage) {

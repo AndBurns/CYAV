@@ -763,7 +763,7 @@ def _decode_weather_token(token: str) -> str | None:
     return " ".join(words).strip().capitalize()
 
 
-def _extract_taf_components(text: str, inherited: dict[str, str] | None = None) -> dict[str, str]:
+def _extract_taf_components(text: str, inherited: dict[str, Any] | None = None) -> dict[str, Any]:
     tokens = text.split()
 
     wind = inherited["wind"] if inherited and inherited.get("wind") else "N/A"
@@ -784,6 +784,7 @@ def _extract_taf_components(text: str, inherited: dict[str, str] | None = None) 
     }
 
     cloud_parts: list[str] = []
+    ceiling_candidates_ft: list[int] = []
 
     index = 0
     while index < len(tokens):
@@ -839,12 +840,15 @@ def _extract_taf_components(text: str, inherited: dict[str, str] | None = None) 
             layer = cloud_map[cloud_match.group(1)]
             altitude_ft = int(cloud_match.group(2)) * 100
             cloud_parts.append(f"{layer} {altitude_ft:,}'")
+            if cloud_match.group(1) in {"BKN", "OVC"}:
+                ceiling_candidates_ft.append(altitude_ft)
             index += 1
             continue
 
         if upper.startswith("VV") and len(upper) == 5 and upper[2:].isdigit():
             altitude_ft = int(upper[2:]) * 100
             cloud_parts.append(f"Vertical visibility {altitude_ft:,}'")
+            ceiling_candidates_ft.append(altitude_ft)
             index += 1
             continue
 
@@ -900,6 +904,8 @@ def _extract_taf_components(text: str, inherited: dict[str, str] | None = None) 
     if cloud_parts:
         clouds = ", ".join(cloud_parts)
 
+    ceiling_ft = min(ceiling_candidates_ft) if ceiling_candidates_ft else None
+
     return {
         "wind": wind,
         "visibility": visibility,
@@ -907,6 +913,7 @@ def _extract_taf_components(text: str, inherited: dict[str, str] | None = None) 
         "other": ", ".join(dict.fromkeys(other_parts)) if other_parts else "None",
         "ws_hazard": ws_hazard,
         "ws_alert": ws_alert,
+        "ceiling_ft": ceiling_ft,
     }
 
 
@@ -930,6 +937,7 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
 
         if not header_match:
             components = _extract_taf_components(raw_taf)
+            category = _flight_category(components.get("ceiling_ft"), _parse_visibility_sm(components.get("visibility")))
             display_rows.append(
                 {
                     "location": row.get("location", "N/A"),
@@ -946,6 +954,8 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                     "other": components["other"],
                     "ws_hazard": components["ws_hazard"],
                     "ws_alert": components["ws_alert"],
+                    "flight_category_label": category["label"],
+                    "flight_category_color": category["color"],
                     "expires": "N/A",
                     "expires_zulu": "N/A",
                     "raw": raw_taf,
@@ -1067,6 +1077,7 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                 title_text = f"{title_text} (CURRENT)"
 
             components = _extract_taf_components(segment["text"])
+            category = _flight_category(components.get("ceiling_ft"), _parse_visibility_sm(components.get("visibility")))
             display_rows.append(
                 {
                     "location": row.get("location", "N/A"),
@@ -1083,6 +1094,8 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                     "other": components["other"],
                     "ws_hazard": components["ws_hazard"],
                     "ws_alert": components["ws_alert"],
+                    "flight_category_label": category["label"],
+                    "flight_category_color": category["color"],
                     "expires": _format_friendly_local_time(seg_end_local),
                     "expires_zulu": expires_zulu,
                     "raw": segment["raw"] or segment["text"],
@@ -1101,6 +1114,10 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                 overlay_start_local = overlay_start.astimezone(LOCAL_TZ)
                 overlay_end_local = overlay_end.astimezone(LOCAL_TZ)
                 overlay_components = _extract_taf_components(overlay["text"], inherited=components)
+                overlay_category = _flight_category(
+                    overlay_components.get("ceiling_ft"),
+                    _parse_visibility_sm(overlay_components.get("visibility")),
+                )
 
                 same_as_parent = overlay_start == seg_start_utc and overlay_end == seg_end_utc
                 window_from = _format_friendly_local_time(overlay_start_local)
@@ -1123,6 +1140,8 @@ def build_taf_decoded_rows(taf_rows: list[dict[str, str]]) -> list[dict[str, str
                         "probability_text": str(overlay.get("probability_text") or ""),
                         "ws_hazard": overlay_components["ws_hazard"],
                         "ws_alert": overlay_components["ws_alert"],
+                        "flight_category_label": overlay_category["label"],
+                        "flight_category_color": overlay_category["color"],
                         "expires": window_until,
                         "expires_zulu": overlay_end.strftime("%Y-%m-%d %H:%MZ"),
                         "raw": overlay["raw"],
@@ -1761,6 +1780,104 @@ def parse_wind(metar: dict[str, Any]) -> Wind | None:
     )
 
 
+def _parse_fraction(text: str) -> float | None:
+    value = text.strip()
+    if not value:
+        return None
+
+    if "/" in value:
+        left, right = value.split("/", 1)
+        try:
+            numerator = float(left)
+            denominator = float(right)
+        except ValueError:
+            return None
+        if denominator == 0:
+            return None
+        return numerator / denominator
+
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _parse_visibility_sm(value: Any) -> float | None:
+    if value is None:
+        return None
+
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    text = str(value).strip().upper()
+    if not text or text in {"N/A", "UNKNOWN"}:
+        return None
+
+    if text in {"P6SM", "6+ SM", "6+SM"}:
+        return 6.0
+
+    text = re.sub(r"\s+", " ", text)
+
+    mixed_match = re.match(r"^(M?\d+)\s+(\d+/\d+)\s*SM$", text)
+    if mixed_match:
+        whole_part = mixed_match.group(1).lstrip("M")
+        whole = _parse_fraction(whole_part)
+        fraction = _parse_fraction(mixed_match.group(2))
+        if whole is None or fraction is None:
+            return None
+        return whole + fraction
+
+    fractional_match = re.match(r"^M?(\d+/\d+)\s*SM$", text)
+    if fractional_match:
+        return _parse_fraction(fractional_match.group(1))
+
+    numeric_match = re.match(r"^M?(\d+(?:\.\d+)?)\s*SM$", text)
+    if numeric_match:
+        return _parse_fraction(numeric_match.group(1))
+
+    return _parse_fraction(text)
+
+
+def _flight_category(ceiling_ft: int | None, visibility_sm: float | None) -> dict[str, str]:
+    if (ceiling_ft is not None and ceiling_ft < 500) or (visibility_sm is not None and visibility_sm < 1.0):
+        return {
+            "label": "LIFR",
+            "color": "magenta",
+            "concept": "Ceiling below 500 ft AGL and/or visibility less than 1 mile",
+        }
+
+    if (ceiling_ft is not None and 500 <= ceiling_ft < 1000) or (
+        visibility_sm is not None and 1.0 <= visibility_sm <= 3.0
+    ):
+        return {
+            "label": "IFR",
+            "color": "red",
+            "concept": "Ceiling 500 to below 1,000 ft AGL and/or visibility 1 to 3 miles",
+        }
+
+    if (ceiling_ft is not None and 1000 <= ceiling_ft <= 3000) or (
+        visibility_sm is not None and 3.0 < visibility_sm <= 5.0
+    ):
+        return {
+            "label": "MVFR",
+            "color": "blue",
+            "concept": "Ceiling 1,000 to 3,000 ft AGL and/or visibility over 3 to 5 miles",
+        }
+
+    if (ceiling_ft is not None and ceiling_ft > 3000) and (visibility_sm is not None and visibility_sm > 5.0):
+        return {
+            "label": "VFR",
+            "color": "green",
+            "concept": "Ceiling above 3,000 ft AGL and visibility greater than 5 miles",
+        }
+
+    return {
+        "label": "N/A",
+        "color": "",
+        "concept": "Insufficient ceiling/visibility data for category",
+    }
+
+
 def decode_metar(metar: dict[str, Any]) -> dict[str, Any]:
     wind = parse_wind(metar)
     if wind is None:
@@ -1775,6 +1892,7 @@ def decode_metar(metar: dict[str, Any]) -> dict[str, Any]:
         wind_text = f"{wind.direction:03d}° at {wind.speed_kt} kt"
 
     vis_value = metar.get("visib")
+    visibility_sm = _parse_visibility_sm(vis_value)
     visibility_text = f"{vis_value} SM" if vis_value not in (None, "") else "N/A"
 
     temp_value = metar.get("temp")
@@ -1786,7 +1904,8 @@ def decode_metar(metar: dict[str, Any]) -> dict[str, Any]:
     altimeter_inhg = normalize_altimeter_inhg(metar.get("altim"))
     altim_text = f"{altimeter_inhg:.2f} inHg" if altimeter_inhg is not None else "N/A"
     raw_text = str(metar.get("rawOb") or metar.get("raw_text") or "").strip()
-    ceiling_text, other_weather_text = _extract_metar_ceiling_and_other(raw_text)
+    ceiling_text, other_weather_text, ceiling_ft = _extract_metar_ceiling_and_other(raw_text)
+    category = _flight_category(ceiling_ft, visibility_sm)
 
     return {
         "raw": raw_text or "N/A",
@@ -1798,10 +1917,13 @@ def decode_metar(metar: dict[str, Any]) -> dict[str, Any]:
         "altimeter": altim_text,
         "ceiling": ceiling_text,
         "other_weather": other_weather_text,
+        "flight_category_label": category["label"],
+        "flight_category_color": category["color"],
+        "flight_category_concept": category["concept"],
     }
 
 
-def _extract_metar_ceiling_and_other(raw_text: str) -> tuple[str, str]:
+def _extract_metar_ceiling_and_other(raw_text: str) -> tuple[str, str, int | None]:
     upper = raw_text.upper()
 
     ceiling_heights_ft: list[int] = []
@@ -1811,8 +1933,10 @@ def _extract_metar_ceiling_and_other(raw_text: str) -> tuple[str, str]:
         except ValueError:
             continue
 
+    ceiling_ft: int | None = None
     if ceiling_heights_ft:
-        ceiling_text = f"{min(ceiling_heights_ft)} ft AGL"
+        ceiling_ft = min(ceiling_heights_ft)
+        ceiling_text = f"{ceiling_ft} ft AGL"
     elif re.search(r"\b(?:SKC|CLR|NSC|NCD|CAVOK)\b", upper):
         ceiling_text = "No ceiling reported"
     else:
@@ -1836,7 +1960,7 @@ def _extract_metar_ceiling_and_other(raw_text: str) -> tuple[str, str]:
     deduped_weather = list(dict.fromkeys(weather_parts))
     other_weather_text = ", ".join(deduped_weather) if deduped_weather else "None"
 
-    return ceiling_text, other_weather_text
+    return ceiling_text, other_weather_text, ceiling_ft
 
 
 def format_observed_local(observed: Any) -> str:
@@ -2067,6 +2191,7 @@ def build_conditions_context(requested_airport: str | None = None) -> dict[str, 
         ).strip()
         summary_parts = [
             first_window,
+            str(first_row.get("flight_category_label") or "").strip(),
             str(first_row.get("wind") or "").strip(),
             str(first_row.get("visibility") or "").strip(),
         ]

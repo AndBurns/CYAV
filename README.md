@@ -53,3 +53,59 @@ Airport selector behavior:
 - Frequency data source: OurAirports (`airport-frequencies.csv`) with automatic local fallback from `app.py` if online data is unavailable
 - PDF generation: Prince XML CLI (`prince`) must be installed on the server; app checks availability before opening print flow
 - This app does not set first-party tracking cookies; it uses localStorage for consent state and optional preference retention
+
+## Deploy on Apache at /FlightInfo
+
+This project is now set up to run behind Apache/mod_wsgi at:
+
+- `https://a-burns.com/FlightInfo`
+
+### 1) Install Apache + mod_wsgi + venv dependencies
+
+Example (Debian/Ubuntu):
+
+```bash
+sudo apt update
+sudo apt install -y apache2 libapache2-mod-wsgi-py3 python3-venv
+```
+
+### 2) Create a virtual environment and install app requirements
+
+```bash
+cd /var/www/a-burns.com/public_html/FlightInfo
+python3 -m venv /var/www/a-burns.com/venv
+/var/www/a-burns.com/venv/bin/pip install --upgrade pip
+/var/www/a-burns.com/venv/bin/pip install -r requirements.txt
+```
+
+### 3) Enable the Apache config snippet
+
+Use the provided file:
+
+- `apache/flightinfo.conf`
+
+Important:
+
+- Update `python-home` in that file if your venv path differs.
+- It expects your app path to be `/var/www/a-burns.com/public_html/FlightInfo` (your symlink target/path).
+
+Then include that snippet in your active vhost for `a-burns.com`, or copy its directives into the vhost.
+
+### 4) Reload Apache
+
+```bash
+sudo apachectl configtest
+sudo systemctl reload apache2
+```
+
+### 5) Verify
+
+Open:
+
+- `https://a-burns.com/FlightInfo`
+
+If needed, check logs:
+
+```bash
+sudo tail -f /var/log/apache2/error.log
+```

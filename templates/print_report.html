@@ -79,8 +79,17 @@
             font-weight: 700;
         }
         .metar-age.green { color: green; }
+        .metar-age.blue { color: blue; }
         .metar-age.orange { color: orange; }
         .metar-age.red { color: red; }
+        .metar-age.magenta { color: magenta; }
+        .flight-cat {
+            font-weight: 700;
+        }
+        .flight-cat.green { color: green; }
+        .flight-cat.blue { color: blue; }
+        .flight-cat.red { color: red; }
+        .flight-cat.magenta { color: magenta; }
         .section-break {
             page-break-before: auto;
             page-break-inside: avoid;
@@ -177,6 +186,10 @@
                                 <th>METAR Age</th>
                                 <td><span class="metar-age{% if decoded.metar_age_color %} {{ decoded.metar_age_color }}{% endif %}">{{ decoded.metar_age }}</span></td>
                             </tr>
+                            <tr>
+                                <th>Flight Category</th>
+                                <td><span class="flight-cat{% if decoded.flight_category_color %} {{ decoded.flight_category_color }}{% endif %}">{{ decoded.flight_category_label }}</span> — {{ decoded.flight_category_concept }}</td>
+                            </tr>
                             <tr><th>Wind</th><td>{{ decoded.wind }}</td></tr>
                             <tr><th>Visibility</th><td>{{ decoded.visibility }}</td></tr>
                             <tr><th>Temperature</th><td>{{ decoded.temperature }}</td></tr>
@@ -229,6 +242,7 @@
                 <thead>
                     <tr>
                         <th>Forecast Window</th>
+                        <th>Category</th>
                         <th>Wind</th>
                         <th>Visibility</th>
                         <th>Clouds</th>
@@ -246,6 +260,7 @@
                                     {% if row.window_day %}{{ row.window_day }} {% endif %}{{ row.window_line }}
                                 </span>
                             </td>
+                            <td><span class="flight-cat{% if row.flight_category_color %} {{ row.flight_category_color }}{% endif %}">{{ row.flight_category_label }}</span></td>
                             <td>{{ row.wind }}</td>
                             <td>{{ row.visibility }}</td>
                             <td>{{ row.clouds }}</td>
@@ -253,7 +268,7 @@
                         </tr>
                     {% endfor %}
                     {% if not taf_decoded_rows %}
-                        <tr><td colspan="5">No TAF records returned for this airport.</td></tr>
+                        <tr><td colspan="6">No TAF records returned for this airport.</td></tr>
                     {% endif %}
                 </tbody>
             </table>
