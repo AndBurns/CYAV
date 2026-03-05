@@ -3,34 +3,105 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>METAR Runway Tool</title>
+    <title>Flight-Conditions: {{ selected_airport }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 1rem;
+            background: #cfe8ff;
+            color: #0b2d4a;
         }
         h1, h2 {
             margin-bottom: 0.5rem;
+            color: #05243d;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .refresh-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.35rem;
+        }
+        .refresh-btn {
+            background: #0e3a60;
+            border-color: #0a2c49;
+        }
+        .refresh-btn:hover {
+            background: #124a79;
+        }
+        .refresh-timer {
+            font-size: 0.78rem;
+            color: #12395b;
         }
         form {
             margin: 1rem 0 1.5rem;
+        }
+        .selector-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            max-width: 520px;
+        }
+        .airport-select-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .airport-select-row #airport {
+            flex: 1;
+            min-width: 0;
+        }
+        .airport-select-row .btn {
+            padding: 0.35rem 0.65rem;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .selector-row select {
+            padding: 0.4rem;
+            font-size: 0.95rem;
+        }
+        .selector-row .select2-container {
+            width: 100% !important;
+        }
+        .selector-row .select2-selection--single {
+            min-height: 2.2rem;
+        }
+        .selector-row .select2-selection__rendered {
+            line-height: 2.2rem !important;
+        }
+        .selector-row .select2-selection__arrow {
+            height: 2.2rem !important;
+        }
+        .selector-help {
+            font-size: 0.85rem;
+            color: #1b4a74;
+            margin: 0;
         }
         table {
             border-collapse: collapse;
             width: 100%;
             margin-top: 0.75rem;
+            background: #f8fcff;
         }
         th, td {
-            border: 1px solid #ddd;
+            border: 1px solid #8cb7dc;
             padding: 0.5rem;
             text-align: left;
             vertical-align: top;
         }
         th {
-            background: #f4f4f4;
+            background: #d7ebff;
+            color: #093052;
         }
         tr.preferred {
-            background: #e8f6e8;
+            background: #d5f0ff;
             font-weight: 700;
         }
         .error {
@@ -43,22 +114,189 @@
             padding: 0.65rem;
             margin: 0.75rem 0;
         }
+        .note-local {
+            margin-top: 0.45rem;
+            font-size: 0.85rem;
+        }
+        .note-local summary {
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .note-local-raw {
+            margin-top: 0.35rem;
+            white-space: pre-wrap;
+            font-size: 0.82rem;
+        }
         .layout {
             display: grid;
             grid-template-columns: 1fr;
             gap: 1rem;
         }
         .panel {
-            border: 1px solid #ddd;
+            border: 1px solid #6d9fcd;
             padding: 0.75rem;
             border-radius: 4px;
+            background: #eff7ff;
+            box-shadow: 0 1px 0 rgba(5, 36, 61, 0.12);
         }
-        .metar-table th {
-            width: 35%;
+        .metar-grid td {
+            width: 50%;
+            vertical-align: top;
+        }
+        .metar-cell-label {
+            display: block;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 0.2rem;
+            line-height: 1.2;
+        }
+        .metar-cell-value {
+            font-size: 0.95rem;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+        .metar-raw-cell {
+            width: 100% !important;
+        }
+        .metar-age {
+            font-size: 0.8rem;
             font-weight: 700;
         }
-        .actions {
-            margin-top: 0.85rem;
+        .metar-age.green { color: green; }
+        .metar-age.orange { color: orange; }
+        .metar-age.red { color: red; }
+        .reporting-station-diff {
+            color: orange;
+            font-weight: 700;
+        }
+        .source-note {
+            font-size: 0.76rem;
+            color: #2a5a85;
+            margin-top: 0.35rem;
+        }
+        .runway-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            margin-top: 0.5rem;
+        }
+        .runway-select-hint {
+            font-size: 0.82rem;
+            color: #1b4a74;
+        }
+        .runway-table tbody tr {
+            cursor: pointer;
+        }
+        .runway-table tbody tr.isolated {
+            background: #d5f0ff;
+            font-weight: 700;
+        }
+        .taf-source-inline {
+            display: block;
+            margin-top: 0.2rem;
+            font-size: 0.78rem;
+            color: orange;
+            font-weight: 700;
+        }
+        .taf-header-main {
+            font-weight: 700;
+        }
+        .taf-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.6rem;
+        }
+        .taf-header-left {
+            display: block;
+        }
+        .taf-header-right {
+            text-align: right;
+            font-size: 0.76rem;
+            color: #2a5a85;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+        .taf-header-note {
+            font-size: 0.78rem;
+            color: orange;
+            font-weight: 700;
+            margin-left: 0.35rem;
+        }
+        .taf-tempo {
+            font-style: italic;
+        }
+        .taf-wind-col {
+            min-width: 120px;
+        }
+        .taf-window-col {
+            min-width: 180px;
+        }
+        .taf-visibility-col {
+            width: 70px;
+            white-space: nowrap;
+        }
+        .taf-window-line {
+            line-height: 1.25;
+        }
+        .taf-window-indent {
+            margin-left: 0.8rem;
+        }
+        .raw-popup-btn {
+            margin-top: 0.3rem;
+            padding: 0.2rem 0.45rem;
+            border: 1px solid #6d9fcd;
+            background: #e7f3ff;
+            color: #0b2d4a;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .raw-popup-btn.hazard {
+            color: #b30000;
+            border-color: #b30000;
+            background: #ffe9e9;
+            font-weight: 700;
+        }
+        .ws-hazard {
+            color: #b30000;
+            font-weight: 700;
+        }
+        #raw-popup {
+            border: 1px solid #6d9fcd;
+            border-radius: 6px;
+            padding: 0.8rem;
+            max-width: 760px;
+            width: min(90vw, 760px);
+            background: #f8fcff;
+        }
+        #raw-popup::backdrop {
+            background: rgba(8, 34, 58, 0.45);
+        }
+        .time-cell-local { display: block; }
+        .time-zulu details { margin-top: 0.15rem; }
+        .time-zulu summary {
+            cursor: pointer;
+            font-size: 0.74rem;
+            color: #1b4a74;
+        }
+        .time-zulu-value {
+            font-size: 0.74rem;
+            color: #1b4a74;
+        }
+        .actions { margin-top: 0.85rem; }
+        details.more-frequencies,
+        details.advisories { margin-top: 0.75rem; }
+        details.more-frequencies summary,
+        details.advisories summary {
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .advisory-text {
+            white-space: pre-wrap;
+            font-size: 0.85rem;
+            margin: 0;
         }
         .btn {
             display: inline-block;
@@ -70,9 +308,7 @@
             border-radius: 4px;
             font-weight: 700;
         }
-        .btn:hover {
-            background: #236b9c;
-        }
+        .btn:hover { background: #236b9c; }
         .btn.disabled {
             background: #9aa3aa;
             border-color: #7f8b93;
@@ -94,18 +330,39 @@
     </style>
 </head>
 <body>
-    <h1>METAR Decoder + Runway Wind Components</h1>
+    <div class="page-header">
+        <h1>Flight Conditions: {{ selected_airport }}</h1>
+        <div class="refresh-controls">
+            <button id="refresh-btn" class="btn refresh-btn" type="button">Refresh</button>
+            <span id="refresh-timer" class="refresh-timer">Last refreshed: just now</span>
+        </div>
+    </div>
 
-    <form method="get" action="/">
-        <label for="airport">Airport:</label>
-        <select id="airport" name="airport">
-            {% for code, info in airports.items() %}
-                <option value="{{ code }}" {% if code == selected_airport %}selected{% endif %}>
-                    {{ code }} - {{ info.name }}
-                </option>
-            {% endfor %}
-        </select>
-        <button type="submit">Load</button>
+    <form method="get" action="/" id="airport-form">
+        <div class="selector-row">
+            <label for="airport">Airport:</label>
+            <div class="airport-select-row">
+                <select id="airport" name="airport">
+                    <optgroup id="recent-airports" label="Recent Selections" hidden></optgroup>
+                    <optgroup id="all-airports" label="All Canadian Airports">
+                        {% for airport in airport_options %}
+                            <option value="{{ airport.code }}" {% if airport.code == selected_airport %}selected{% endif %}>
+                                {{ airport.code }} - {{ airport.name }}
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+                {% if selected_airport_data.liveatc_available %}
+                    <a class="btn" href="{{ selected_airport_data.liveatc_url }}" target="_blank" rel="noopener noreferrer">
+                        Listen on LiveATC (Tower)
+                    </a>
+                {% else %}
+                    <span class="btn disabled" aria-disabled="true" title="No known LiveATC feed for this airport">
+                        LiveATC Unavailable
+                    </span>
+                {% endif %}
+            </div>
+        </div>
     </form>
 
     {% if error %}
@@ -114,142 +371,567 @@
 
     {% if decoded %}
         {% if fallback_used %}
-            <p class="note">
+            <div class="note">
                 No recent METAR for {{ selected_airport }}. Showing nearest available report from
                 <strong>{{ metar_source_code }}</strong> ({{ metar_distance_km }} km / {{ metar_distance_nm }} NM away).
-            </p>
+                {% if local_recent_exists %}
+                    <span class="note-local">
+                        Most recent local LWIS/METAR: {{ local_recent_label }}
+                        <span class="metar-age{% if local_recent_age_color %} {{ local_recent_age_color }}{% endif %}">
+                            ({{ local_recent_age_text }})
+                        </span>
+                    </span>
+                    {% if local_recent_raw %}
+                        <details class="note-local">
+                            <summary>Raw local report</summary>
+                            <pre class="note-local-raw">{{ local_recent_raw }}</pre>
+                        </details>
+                    {% endif %}
+                {% else %}
+                    <span class="note-local">Most recent local LWIS/METAR: Unavailable</span>
+                {% endif %}
+            </div>
         {% endif %}
 
         <div class="layout">
             <section class="panel">
                 <h2>{{ selected_airport }} Runway Wind Components</h2>
-                <p><strong>Runway data source:</strong> {{ runway_source }}</p>
-                <table>
+                <div class="runway-controls">
+                    <button id="headwinds-only-toggle" type="button" class="btn">Headwinds only: Off</button>
+                    <span class="runway-select-hint">Click a runway row or its checkbox to isolate it. Click again to show all.</span>
+                </div>
+                <table class="runway-table">
                     <thead>
                         <tr>
+                            <th>Isolate</th>
                             <th>Runway</th>
                             <th>Heading</th>
                             <th>Wind Angle (°)</th>
                             <th>Headwind / Tailwind (kt)</th>
                             <th>Crosswind (kt)</th>
-                            <th>Preferred</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="runway-table-body">
                         {% for row in runway_rows %}
-                            <tr class="{% if row.runway == preferred %}preferred{% endif %}">
+                            <tr class="{% if row.runway == preferred %}preferred{% endif %}" data-runway="{{ row.runway }}" data-headwind="{% if row.headwind is not none %}{{ row.headwind }}{% endif %}">
+                                <td><input type="checkbox" class="runway-isolate-checkbox" aria-label="Isolate runway {{ row.runway }}"></td>
                                 <td>{{ row.runway }}</td>
                                 <td>{{ row.heading }}°</td>
-                                <td>
-                                    {% if row.angle is not none %}
-                                        {{ row.angle }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if row.headwind is not none %}
-                                        {{ row.headwind }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if row.crosswind is not none %}
-                                        {{ row.crosswind }} {{ row.crosswind_side }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </td>
-                                <td>{% if row.runway == preferred %}Yes{% else %}-{% endif %}</td>
+                                <td>{% if row.angle is not none %}{{ row.angle }}{% else %}N/A{% endif %}</td>
+                                <td>{% if row.headwind is not none %}{{ row.headwind }}{% else %}N/A{% endif %}</td>
+                                <td>{% if row.crosswind is not none %}{{ row.crosswind }} {{ row.crosswind_side }}{% else %}N/A{% endif %}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
-                <p>
-                    Preferred runway rule: non-negative headwind and smallest crosswind.
-                    If all runways have tailwind, the least-tailwind runway is chosen.
-                </p>
+
+                <h2>Airport Operational Frequencies</h2>
+                <table class="metar-grid">
+                    <tbody>
+                        {% for pair in selected_airport_data.frequencies|batch(2, none) %}
+                            <tr>
+                                {% for freq in pair %}
+                                    <td>
+                                        {% if freq %}
+                                            <span class="metar-cell-label">{{ freq.service }}</span>
+                                            <span class="metar-cell-value">{{ freq.frequency }} MHz</span>
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                        {% if not selected_airport_data.frequencies %}
+                            <tr><td colspan="2">No operational frequencies available.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+                <p class="source-note">Source: Runways and Frequencies Online (our/Airports).</p>
+
+                {% if other_frequencies %}
+                    <details class="more-frequencies">
+                        <summary>Other published frequencies</summary>
+                        <table>
+                            <thead>
+                                <tr><th>Service</th><th>Frequency (MHz)</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for freq in other_frequencies %}
+                                    <tr><td>{{ freq.service }}</td><td>{{ freq.frequency }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </details>
+                {% endif %}
             </section>
 
             <section class="panel">
-                <h2>Decoded METAR</h2>
-                <table class="metar-table">
+                <h2>METAR - {{ metar_source_code }}</h2>
+                <table class="metar-grid">
                     <tbody>
                         <tr>
-                            <th>Requested Airport</th>
-                            <td>{{ selected_airport }}</td>
+                            <td>
+                                <span class="metar-cell-label">Reporting Airport</span>
+                                <span class="metar-cell-value{% if metar_source_code != selected_airport %} reporting-station-diff{% endif %}">
+                                    {{ metar_source_code }}
+                                    {% if metar_source_code != selected_airport and metar_distance_km is not none and metar_distance_nm is not none %}
+                                        ({{ metar_distance_km }} km / {{ metar_distance_nm }} NM from {{ selected_airport }})
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metar-cell-label">Source Feed</span>
+                                <span class="metar-cell-value">{{ metar_provider }}</span>
+                            </td>
                         </tr>
                         <tr>
-                            <th>METAR Source</th>
-                            <td>{{ metar_source_code }}</td>
+                            <td>
+                                <span class="metar-cell-label">Last Updated (Local)</span>
+                                <span class="metar-cell-value time-cell-local">{{ decoded.observed_local }}</span>
+                                <span class="time-zulu">
+                                    <details>
+                                        <summary>Zulu</summary>
+                                        <span class="time-zulu-value">{{ decoded.observed_zulu }}</span>
+                                    </details>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metar-cell-label">METAR Age</span>
+                                <span class="metar-cell-value metar-age{% if decoded.metar_age_color %} {{ decoded.metar_age_color }}{% endif %}">{{ decoded.metar_age }}</span>
+                            </td>
                         </tr>
                         <tr>
-                            <th>Observed</th>
-                            <td>{{ decoded.observed }}</td>
+                            <td><span class="metar-cell-label">Wind</span><span class="metar-cell-value">{{ decoded.wind }}</span></td>
+                            <td><span class="metar-cell-label">Visibility</span><span class="metar-cell-value">{{ decoded.visibility }}</span></td>
                         </tr>
                         <tr>
-                            <th>Last Updated (Local)</th>
-                            <td>{{ decoded.observed_local }}</td>
+                            <td><span class="metar-cell-label">Temperature</span><span class="metar-cell-value">{{ decoded.temperature }}</span></td>
+                            <td><span class="metar-cell-label">Dewpoint</span><span class="metar-cell-value">{{ decoded.dewpoint }}</span></td>
                         </tr>
                         <tr>
-                            <th>Wind</th>
-                            <td>{{ decoded.wind }}</td>
+                            <td><span class="metar-cell-label">Altimeter</span><span class="metar-cell-value">{{ decoded.altimeter }}</span></td>
+                            <td><span class="metar-cell-label">Density Altitude</span><span class="metar-cell-value">{{ decoded.density_altitude }}</span></td>
                         </tr>
                         <tr>
-                            <th>Visibility</th>
-                            <td>{{ decoded.visibility }}</td>
+                            <td><span class="metar-cell-label">Ceiling</span><span class="metar-cell-value">{{ decoded.ceiling }}</span></td>
+                            <td><span class="metar-cell-label">Other</span><span class="metar-cell-value">{{ decoded.other_weather }}</span></td>
                         </tr>
                         <tr>
-                            <th>Temperature</th>
-                            <td>{{ decoded.temperature }}</td>
-                        </tr>
-                        <tr>
-                            <th>Dewpoint</th>
-                            <td>{{ decoded.dewpoint }}</td>
-                        </tr>
-                        <tr>
-                            <th>Altimeter</th>
-                            <td>{{ decoded.altimeter }}</td>
-                        </tr>
-                        <tr>
-                            <th>Raw METAR</th>
-                            <td>{{ decoded.raw }}</td>
+                            <td class="metar-raw-cell" colspan="2">
+                                <span class="metar-cell-label">Raw METAR</span>
+                                <span class="metar-cell-value">{{ decoded.raw }}</span>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
 
-                <h2>Airport Frequencies</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Service</th>
-                            <th>Frequency (MHz)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for freq in selected_airport_data.frequencies %}
+                <details class="advisories">
+                    <summary>{{ taf_summary_text }}</summary>
+                    <table>
+                        <thead>
                             <tr>
-                                <td>{{ freq.service }}</td>
-                                <td>{{ freq.frequency }}</td>
+                                <th colspan="5">
+                                    <div class="taf-header-row">
+                                        <span class="taf-header-left">
+                                            <span class="taf-header-main">{{ selected_airport }} TAF</span>
+                                            {% if taf_fallback_used and taf_distance_nm is not none %}
+                                                <span class="taf-header-note">(based on {{ taf_source_code }} {{ taf_distance_nm }} NM{% if taf_direction %} {{ taf_direction }}{% endif %})</span>
+                                            {% endif %}
+                                        </span>
+                                        {% if taf_updated_local != "N/A" %}
+                                            <span class="taf-header-right">
+                                                Updated: {{ taf_updated_local }}
+                                                <span class="metar-age{% if taf_age_color %} {{ taf_age_color }}{% endif %}">({{ taf_age_text }})</span>
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                            <tr>
+                                <th class="taf-window-col">Forecast Window</th>
+                                <th class="taf-wind-col">Wind</th>
+                                <th class="taf-visibility-col">Visibility</th>
+                                <th>Clouds (AGL)</th>
+                                <th>Other</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in taf_decoded_rows %}
+                                <tr>
+                                    <td>
+                                        {% if row.is_tempo %}
+                                            <span class="taf-tempo">Temporary</span><br>
+                                        {% endif %}
+                                        {% if row.omit_window_range %}
+                                            <span class="time-cell-local"></span>
+                                        {% else %}
+                                            <span class="time-cell-local taf-window-line{% if row.is_tempo %} taf-window-indent{% endif %}">{{ row.window_day }}</span>
+                                            <span class="time-cell-local taf-window-line{% if row.is_tempo %} taf-window-indent{% endif %}">{{ row.window_line }}</span>
+                                        {% endif %}
+                                        {% if not row.omit_window_range %}
+                                            <span class="time-zulu">
+                                                <details>
+                                                    <summary>Zulu</summary>
+                                                    <span class="time-zulu-value">From {{ row.title_zulu }} until {{ row.expires_zulu }}</span>
+                                                </details>
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ row.wind }}</td>
+                                    <td>{{ row.visibility }}</td>
+                                    <td>{{ row.clouds }}</td>
+                                    <td>
+                                        {% if row.ws_hazard and row.ws_alert %}
+                                            <div class="ws-hazard">{{ row.ws_alert }}</div>
+                                        {% endif %}
+                                        <div>{{ row.other }}</div>
+                                        <button type="button" class="raw-popup-btn{% if row.ws_hazard %} hazard{% endif %}" data-hazard="{% if row.ws_hazard %}1{% else %}0{% endif %}" data-raw="{{ row.raw|e }}">Raw</button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            {% if not taf_decoded_rows %}
+                                <tr><td colspan="5">No TAF records returned for this airport.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </details>
 
-                <div class="actions">
-                    {% if selected_airport_data.liveatc_available %}
-                        <a class="btn" href="{{ selected_airport_data.liveatc_url }}" target="_blank" rel="noopener noreferrer">
-                            Listen on LiveATC (Tower)
-                        </a>
-                    {% else %}
-                        <span class="btn disabled" aria-disabled="true" title="No known LiveATC feed for this airport">
-                            LiveATC Unavailable
-                        </span>
+                <details class="advisories">
+                    <summary>NOTAM (NAV CANADA)</summary>
+                    <table>
+                        <thead>
+                            <tr><th>Airport</th><th>Start</th><th>End</th><th>Text</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for row in notam_rows %}
+                                <tr>
+                                    <td>{{ row.location }}</td>
+                                    <td>
+                                        <span class="time-cell-local">{{ row.start_local }}</span>
+                                        <span class="time-zulu"><details><summary>Zulu</summary><span class="time-zulu-value">{{ row.start_zulu }}</span></details></span>
+                                    </td>
+                                    <td>
+                                        <span class="time-cell-local">{{ row.end_local }}</span>
+                                        <span class="time-zulu"><details><summary>Zulu</summary><span class="time-zulu-value">{{ row.end_zulu }}</span></details></span>
+                                    </td>
+                                    <td><pre class="advisory-text">{{ row.text }}</pre></td>
+                                </tr>
+                            {% endfor %}
+                            {% if not notam_rows %}
+                                <tr><td colspan="4">No NOTAM records returned for this airport.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+
+                    {% if notam_older_rows %}
+                        <details class="advisories">
+                            <summary>Older than 2 months ({{ notam_older_rows|length }})</summary>
+                            <table>
+                                <thead>
+                                    <tr><th>Airport</th><th>Start</th><th>End</th><th>Text</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in notam_older_rows %}
+                                        <tr>
+                                            <td>{{ row.location }}</td>
+                                            <td>
+                                                <span class="time-cell-local">{{ row.start_local }}</span>
+                                                <span class="time-zulu"><details><summary>Zulu</summary><span class="time-zulu-value">{{ row.start_zulu }}</span></details></span>
+                                            </td>
+                                            <td>
+                                                <span class="time-cell-local">{{ row.end_local }}</span>
+                                                <span class="time-zulu"><details><summary>Zulu</summary><span class="time-zulu-value">{{ row.end_zulu }}</span></details></span>
+                                            </td>
+                                            <td><pre class="advisory-text">{{ row.text }}</pre></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </details>
                     {% endif %}
-                </div>
+                </details>
+
+                <details class="advisories">
+                    <summary>SIGMET (NAV CANADA)</summary>
+                    <table>
+                        <thead>
+                            <tr><th>Airport/FIR</th><th>Start</th><th>End</th><th>Text</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sigmet_rows %}
+                                <tr>
+                                    <td>{{ row.location }}</td>
+                                    <td>
+                                        <span class="time-cell-local">{{ row.start_local }}</span>
+                                        <span class="time-zulu"><details><summary>Zulu</summary><span class="time-zulu-value">{{ row.start_zulu }}</span></details></span>
+                                    </td>
+                                    <td>
+                                        <span class="time-cell-local">{{ row.end_local }}</span>
+                                        <span class="time-zulu"><details><summary>Zulu</summary><span class="time-zulu-value">{{ row.end_zulu }}</span></details></span>
+                                    </td>
+                                    <td><pre class="advisory-text">{{ row.text }}</pre></td>
+                                </tr>
+                            {% endfor %}
+                            {% if not sigmet_rows %}
+                                <tr><td colspan="4">No SIGMET records returned for this airport.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </details>
             </section>
         </div>
     {% endif %}
+
+    <dialog id="raw-popup">
+        <h3>Raw TAF Segment</h3>
+        <pre id="raw-popup-content" class="advisory-text"></pre>
+        <button type="button" id="raw-popup-close" class="btn">Close</button>
+    </dialog>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        (function () {
+            const form = document.getElementById("airport-form");
+            const airportSelect = document.getElementById("airport");
+            const recentGroup = document.getElementById("recent-airports");
+            const allGroup = document.getElementById("all-airports");
+            const runwayTableBody = document.getElementById("runway-table-body");
+            const headwindsOnlyToggle = document.getElementById("headwinds-only-toggle");
+            const storageKey = "cyav-recent-airports";
+            const maxRecent = 5;
+            let isSubmitting = false;
+
+            if (!form || !airportSelect || !recentGroup || !allGroup || !window.jQuery) {
+                return;
+            }
+
+            const refreshBtn = document.getElementById("refresh-btn");
+            const refreshTimer = document.getElementById("refresh-timer");
+            const rawPopup = document.getElementById("raw-popup");
+            const rawPopupContent = document.getElementById("raw-popup-content");
+            const rawPopupClose = document.getElementById("raw-popup-close");
+            let startEpoch = Date.now();
+
+            function formatElapsed(seconds) {
+                if (seconds < 60) {
+                    return `${seconds}s ago`;
+                }
+                const minutes = Math.floor(seconds / 60);
+                const remSeconds = seconds % 60;
+                return `${minutes}m ${remSeconds}s ago`;
+            }
+
+            function updateRefreshTimer() {
+                if (!refreshTimer) {
+                    return;
+                }
+                const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startEpoch) / 1000));
+                refreshTimer.textContent = `Last refreshed: ${formatElapsed(elapsedSeconds)}`;
+            }
+
+            updateRefreshTimer();
+            window.setInterval(updateRefreshTimer, 1000);
+
+            if (refreshBtn) {
+                refreshBtn.addEventListener("click", () => {
+                    startEpoch = Date.now();
+                    if (typeof form.requestSubmit === "function") {
+                        form.requestSubmit();
+                        return;
+                    }
+                    form.submit();
+                });
+            }
+
+            if (rawPopup && rawPopupContent) {
+                document.querySelectorAll(".raw-popup-btn").forEach((button) => {
+                    button.addEventListener("click", () => {
+                        const rawText = button.getAttribute("data-raw") || "N/A";
+                        const isHazard = button.getAttribute("data-hazard") === "1";
+                        rawPopupContent.textContent = rawText;
+                        rawPopupContent.classList.toggle("ws-hazard", isHazard);
+                        if (typeof rawPopup.showModal === "function") {
+                            rawPopup.showModal();
+                        }
+                    });
+                });
+            }
+
+            if (rawPopup && rawPopupClose) {
+                rawPopupClose.addEventListener("click", () => {
+                    rawPopup.close();
+                });
+            }
+
+            function getAllOptions() {
+                return Array.from(allGroup.querySelectorAll("option"));
+            }
+
+            function normalizeRecentList(values) {
+                const validCodes = new Set(getAllOptions().map((option) => option.value));
+                const uniqueValues = [];
+                for (const value of values) {
+                    if (!validCodes.has(value) || uniqueValues.includes(value)) {
+                        continue;
+                    }
+                    uniqueValues.push(value);
+                    if (uniqueValues.length >= maxRecent) {
+                        break;
+                    }
+                }
+                return uniqueValues;
+            }
+
+            function loadRecentAirports() {
+                try {
+                    const raw = window.localStorage.getItem(storageKey);
+                    if (!raw) {
+                        return [];
+                    }
+                    const parsed = JSON.parse(raw);
+                    if (!Array.isArray(parsed)) {
+                        return [];
+                    }
+                    return normalizeRecentList(parsed);
+                } catch {
+                    return [];
+                }
+            }
+
+            function saveRecentAirports(values) {
+                const normalized = normalizeRecentList(values);
+                window.localStorage.setItem(storageKey, JSON.stringify(normalized));
+                return normalized;
+            }
+
+            function upsertRecentAirport(value) {
+                const current = loadRecentAirports().filter((entry) => entry !== value);
+                current.unshift(value);
+                return saveRecentAirports(current);
+            }
+
+            function renderRecentAirports() {
+                const recentValues = loadRecentAirports();
+                recentGroup.innerHTML = "";
+
+                const optionIndex = new Map(
+                    getAllOptions().map((option) => [option.value, option.textContent || option.value])
+                );
+
+                for (const value of recentValues) {
+                    const label = optionIndex.get(value);
+                    if (!label) {
+                        continue;
+                    }
+                    const option = document.createElement("option");
+                    option.value = value;
+                    option.textContent = label;
+                    if (value === airportSelect.value) {
+                        option.selected = true;
+                    }
+                    recentGroup.appendChild(option);
+                }
+
+                recentGroup.hidden = recentGroup.children.length === 0;
+            }
+
+            renderRecentAirports();
+
+            const $airportSelect = window.jQuery(airportSelect);
+            $airportSelect.select2({
+                width: "100%"
+            });
+
+            $airportSelect.on("select2:open", () => {
+                const searchField = document.querySelector(".select2-container--open .select2-search__field");
+                if (searchField instanceof HTMLElement) {
+                    searchField.focus();
+                }
+            });
+
+            function submitSelection() {
+                if (isSubmitting) {
+                    return;
+                }
+                isSubmitting = true;
+                upsertRecentAirport(airportSelect.value);
+                if (typeof form.requestSubmit === "function") {
+                    form.requestSubmit();
+                    return;
+                }
+                form.submit();
+            }
+
+            airportSelect.addEventListener("change", submitSelection);
+            $airportSelect.on("select2:select", submitSelection);
+
+            if (runwayTableBody) {
+                let isolatedRunway = null;
+                let headwindsOnly = false;
+
+                function applyRunwayFilters() {
+                    const rows = Array.from(runwayTableBody.querySelectorAll("tr[data-runway]"));
+                    rows.forEach((row) => {
+                        const runway = row.getAttribute("data-runway");
+                        const headwindRaw = row.getAttribute("data-headwind");
+                        const headwind = headwindRaw === "" || headwindRaw === null ? null : Number(headwindRaw);
+                        const headwindPass = !headwindsOnly || (headwind !== null && headwind >= 0);
+                        const isolatePass = !isolatedRunway || runway === isolatedRunway;
+                        const visible = headwindPass && isolatePass;
+                        row.style.display = visible ? "" : "none";
+                        row.classList.toggle("isolated", isolatedRunway === runway);
+                        const checkbox = row.querySelector(".runway-isolate-checkbox");
+                        if (checkbox instanceof HTMLInputElement) {
+                            checkbox.checked = isolatedRunway === runway;
+                        }
+                    });
+                }
+
+                runwayTableBody.addEventListener("click", (event) => {
+                    const target = event.target;
+                    const row = target instanceof HTMLElement ? target.closest("tr[data-runway]") : null;
+                    if (!row) {
+                        return;
+                    }
+                    const runway = row.getAttribute("data-runway");
+                    if (!runway) {
+                        return;
+                    }
+                    const clickedCheckbox = target instanceof HTMLInputElement && target.classList.contains("runway-isolate-checkbox");
+                    if (!clickedCheckbox) {
+                        isolatedRunway = isolatedRunway === runway ? null : runway;
+                        applyRunwayFilters();
+                    }
+                });
+
+                runwayTableBody.addEventListener("change", (event) => {
+                    const target = event.target;
+                    if (!(target instanceof HTMLInputElement) || !target.classList.contains("runway-isolate-checkbox")) {
+                        return;
+                    }
+                    const row = target.closest("tr[data-runway]");
+                    if (!row) {
+                        return;
+                    }
+                    const runway = row.getAttribute("data-runway");
+                    if (!runway) {
+                        return;
+                    }
+                    isolatedRunway = target.checked ? runway : null;
+                    applyRunwayFilters();
+                });
+
+                if (headwindsOnlyToggle) {
+                    headwindsOnlyToggle.addEventListener("click", () => {
+                        headwindsOnly = !headwindsOnly;
+                        headwindsOnlyToggle.textContent = `Headwinds only: ${headwindsOnly ? "On" : "Off"}`;
+                        applyRunwayFilters();
+                    });
+                }
+
+                applyRunwayFilters();
+            }
+        })();
+    </script>
 </body>
 </html>
