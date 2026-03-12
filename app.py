@@ -15,7 +15,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 
 try:
     from weasyprint import HTML
@@ -33,8 +33,9 @@ AIRPORTS: dict[str, dict[str, Any]] = {
         "lat": 50.0564,
         "lon": -97.0325,
         "elevation_ft": 760,
-        "liveatc_url": None,
+        "liveatc_url": "https://www.liveatc.net/search/?icao=CYAV",
         "liveatc_available": False,
+        "liveatc_manual_override": True,
         "runways": [
             {"name": "04", "heading": 40},
             {"name": "22", "heading": 220},
@@ -55,6 +56,7 @@ AIRPORTS: dict[str, dict[str, Any]] = {
         "lon": -97.2399,
         "liveatc_url": "https://www.liveatc.net/search/?icao=CYWG",
         "liveatc_available": True,
+        "liveatc_manual_override": False,
         "runways": [
             {"name": "13", "heading": 130},
             {"name": "31", "heading": 310},
@@ -73,6 +75,7 @@ AIRPORTS: dict[str, dict[str, Any]] = {
         "lon": -94.3631,
         "liveatc_url": None,
         "liveatc_available": False,
+        "liveatc_manual_override": False,
         "runways": [
             {"name": "08", "heading": 80},
             {"name": "26", "heading": 260},
@@ -90,6 +93,7 @@ AIRPORTS: dict[str, dict[str, Any]] = {
         "lon": -97.0433,
         "liveatc_url": None,
         "liveatc_available": False,
+        "liveatc_manual_override": False,
         "runways": [
             {"name": "15", "heading": 150},
             {"name": "33", "heading": 330},
@@ -108,6 +112,7 @@ NAVCAN_METAR_URL = "https://plan.navcanada.ca/weather/api/alpha/"
 AIRPORTS_URL = "https://ourairports.com/data/airports.csv"
 RUNWAYS_URL = "https://ourairports.com/data/runways.csv"
 FREQUENCIES_URL = "https://ourairports.com/data/airport-frequencies.csv"
+LIVEATC_SEARCH_URL = "https://www.liveatc.net/search/?icao={icao}"
 LOCAL_TZ = ZoneInfo("America/Winnipeg")
 INHG_PER_HPA = 0.0295299830714
 
@@ -127,6 +132,9 @@ LOCAL_METAR_RECENT_MAX_AGE_HOURS = 2.0
 FALLBACK_METAR_MAX_AGE_HOURS = 6.0
 _metar_cache_lock = threading.Lock()
 _metar_cache: dict[str, dict[str, Any]] = {}
+LIVEATC_CACHE_TTL_SECONDS = 60 * 60 * 6
+_liveatc_cache_lock = threading.Lock()
+_liveatc_cache: dict[str, dict[str, Any]] = {}
 
 METAR_STATIONS: dict[str, dict[str, Any]] = {
     "CYAV": {"lat": 50.0564, "lon": -97.0325},
@@ -321,6 +329,91 @@ def fetch_metar(airport: str) -> dict[str, Any] | None:
         return cached
 
     return None
+
+
+def _liveatc_search_url(airport_code: str) -> str:
+    return LIVEATC_SEARCH_URL.format(icao=airport_code.strip().upper())
+
+
+def _parse_liveatc_availability(html: str) -> bool | None:
+    text = html.lower()
+    unavailable_markers = (
+        "no airports found",
+        "no matching airports",
+        "no feeds",
+        "no results",
+    )
+    if any(marker in text for marker in unavailable_markers):
+        return False
+
+    # LiveATC results pages usually include one or more player links when a feed exists.
+    if re.search(r"/player\.html\?", text):
+        return True
+
+    return None
+
+
+def resolve_liveatc_status(
+    airport_code: str,
+    configured_url: str | None,
+    configured_available: bool,
+    manual_override: bool = False,
+) -> tuple[bool, str, str]:
+    code = airport_code.strip().upper()
+    if not code:
+        return configured_available, configured_url or "", "Configured"
+
+    lookup_url = configured_url or _liveatc_search_url(code)
+    if manual_override:
+        return configured_available, lookup_url, "Manual override"
+
+    now = time.time()
+    with _liveatc_cache_lock:
+        cached = _liveatc_cache.get(code)
+        if cached and now - float(cached.get("timestamp") or 0.0) < LIVEATC_CACHE_TTL_SECONDS:
+            return bool(cached.get("available")), str(cached.get("url") or _liveatc_search_url(code)), str(
+                cached.get("source") or "LiveATC lookup (cached)"
+            )
+
+    available: bool | None = None
+    source = "Configured"
+
+    try:
+        response = requests.get(
+            lookup_url,
+            timeout=8,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
+            },
+        )
+        if response.ok and response.text:
+            available = _parse_liveatc_availability(response.text)
+            if available is not None:
+                source = "LiveATC lookup"
+    except requests.RequestException:
+        available = None
+
+    if available is None:
+        final_available = configured_available
+        final_url = configured_url or lookup_url
+        final_source = source
+    else:
+        final_available = available
+        final_url = lookup_url
+        final_source = source
+
+    with _liveatc_cache_lock:
+        _liveatc_cache[code] = {
+            "timestamp": now,
+            "available": final_available,
+            "url": final_url,
+            "source": final_source,
+        }
+
+    return final_available, final_url, final_source
 
 
 def _parse_signed_temperature(value: str) -> int:
@@ -1533,18 +1626,33 @@ def merge_airport_overrides(base_airports: dict[str, dict[str, Any]]) -> dict[st
                 "lon": overrides["lon"],
                 "liveatc_url": None,
                 "liveatc_available": False,
+                "liveatc_manual_override": False,
                 "elevation_ft": None,
                 "runways": [],
                 "frequencies": [],
             },
         )
+        base_liveatc_available = bool(base.get("liveatc_available", False))
+        base_liveatc_manual_override = bool(base.get("liveatc_manual_override", False))
+        override_liveatc_available = bool(overrides.get("liveatc_available", False))
+        override_liveatc_manual_override = bool(overrides.get("liveatc_manual_override", False))
+
+        # Preserve persisted manual overrides from cache; otherwise apply configured defaults.
+        if base_liveatc_manual_override:
+            merged_liveatc_available = base_liveatc_available
+            merged_liveatc_manual_override = True
+        else:
+            merged_liveatc_available = override_liveatc_available
+            merged_liveatc_manual_override = override_liveatc_manual_override
+
         airports[airport_code] = {
             **base,
             "name": overrides.get("name", base["name"]),
             "lat": overrides.get("lat", base["lat"]),
             "lon": overrides.get("lon", base["lon"]),
-            "liveatc_url": overrides.get("liveatc_url", base.get("liveatc_url")),
-            "liveatc_available": overrides.get("liveatc_available", base.get("liveatc_available", False)),
+            "liveatc_url": overrides.get("liveatc_url") or base.get("liveatc_url") or _liveatc_search_url(airport_code),
+            "liveatc_available": merged_liveatc_available,
+            "liveatc_manual_override": merged_liveatc_manual_override,
             "elevation_ft": overrides.get("elevation_ft", base.get("elevation_ft")),
             "runways": overrides.get("runways", base.get("runways", [])),
             "frequencies": overrides.get("frequencies", base.get("frequencies", [])),
@@ -1591,6 +1699,7 @@ def fetch_canadian_airports_online() -> dict[str, dict[str, Any]]:
                 "lon": lon,
                 "liveatc_url": None,
                 "liveatc_available": False,
+                "liveatc_manual_override": False,
                 "elevation_ft": elevation_ft,
                 "runways": [],
                 "frequencies": [],
@@ -1601,6 +1710,76 @@ def fetch_canadian_airports_online() -> dict[str, dict[str, Any]]:
 
 def _fallback_airport_index() -> dict[str, dict[str, Any]]:
     return merge_airport_overrides({})
+
+
+def update_cached_airport_liveatc_status(
+    airport_code: str,
+    available: bool,
+    manual_override: bool = False,
+    liveatc_url: str | None = None,
+) -> None:
+    global _airport_cache_data, _airport_cache_timestamp
+
+    code = airport_code.strip().upper()
+    if not code:
+        return
+
+    now = time.time()
+    with _airport_cache_lock:
+        if _airport_cache_data is None:
+            file_data, file_timestamp = _read_airport_cache_file()
+            if file_data:
+                _airport_cache_data = file_data
+                _airport_cache_timestamp = file_timestamp
+            else:
+                _airport_cache_data = _fallback_airport_index()
+                _airport_cache_timestamp = 0.0
+
+        existing = _airport_cache_data.get(code)
+        if existing is None:
+            existing = AIRPORTS.get(
+                code,
+                {
+                    "name": code,
+                    "lat": 0.0,
+                    "lon": 0.0,
+                    "elevation_ft": None,
+                    "runways": [],
+                    "frequencies": [],
+                    "liveatc_manual_override": False,
+                },
+            )
+
+        resolved_url = (liveatc_url or existing.get("liveatc_url") or _liveatc_search_url(code)).strip()
+        _airport_cache_data[code] = {
+            **existing,
+            "liveatc_available": bool(available),
+            "liveatc_manual_override": bool(manual_override),
+            "liveatc_url": resolved_url,
+        }
+        _airport_cache_timestamp = now
+        cached_snapshot = dict(_airport_cache_data)
+        snapshot_timestamp = _airport_cache_timestamp
+
+    _write_airport_cache_file(cached_snapshot, snapshot_timestamp)
+
+    # Keep runtime overrides in sync so cache refresh merges don't drop manual confirmations.
+    if code not in AIRPORTS:
+        AIRPORTS[code] = {
+            "name": existing.get("name", code),
+            "lat": float(existing.get("lat") or 0.0),
+            "lon": float(existing.get("lon") or 0.0),
+            "elevation_ft": existing.get("elevation_ft"),
+            "runways": list(existing.get("runways") or []),
+            "frequencies": list(existing.get("frequencies") or []),
+            "liveatc_url": resolved_url,
+            "liveatc_available": bool(available),
+            "liveatc_manual_override": bool(manual_override),
+        }
+    else:
+        AIRPORTS[code]["liveatc_url"] = resolved_url
+        AIRPORTS[code]["liveatc_available"] = bool(available)
+        AIRPORTS[code]["liveatc_manual_override"] = bool(manual_override)
 
 
 def _read_airport_cache_file() -> tuple[dict[str, dict[str, Any]] | None, float]:
@@ -2288,9 +2467,19 @@ def build_conditions_context(requested_airport: str | None = None) -> dict[str, 
     sigmet_rows = fetch_navcan_alpha_records(selected_airport, "sigmet", max_items=20)
 
     operational_frequencies, other_frequencies = split_operational_frequencies(selected_frequencies)
+    liveatc_available, liveatc_url, liveatc_source = resolve_liveatc_status(
+        selected_airport,
+        airport_index[selected_airport].get("liveatc_url"),
+        bool(airport_index[selected_airport].get("liveatc_available")),
+        bool(airport_index[selected_airport].get("liveatc_manual_override")),
+    )
     selected_airport_data = {
         **airport_index[selected_airport],
         "frequencies": operational_frequencies,
+        "liveatc_available": liveatc_available,
+        "liveatc_url": liveatc_url,
+        "liveatc_source": liveatc_source,
+        "liveatc_manual_override": bool(airport_index[selected_airport].get("liveatc_manual_override")),
     }
 
     airport_options = [
@@ -2416,6 +2605,21 @@ def print_report() -> Response:
 def index() -> str:
     context = build_conditions_context(request.args.get("airport", "CYAV"))
     return render_template("index.html", **context)
+
+
+@app.post("/liveatc-status")
+def liveatc_status() -> Response:
+    airport_code = (request.form.get("airport") or "").strip().upper()
+    available_raw = (request.form.get("available") or "").strip().lower()
+    available = available_raw in {"1", "true", "yes", "on"}
+    manual_override_raw = (request.form.get("manual_override") or "").strip().lower()
+    manual_override = manual_override_raw in {"1", "true", "yes", "on"}
+    liveatc_url = (request.form.get("liveatc_url") or "").strip() or None
+
+    if airport_code:
+        update_cached_airport_liveatc_status(airport_code, available, manual_override, liveatc_url)
+
+    return redirect(url_for("index", airport=airport_code or "CYAV"))
 
 
 if __name__ == "__main__":
