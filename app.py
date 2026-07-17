@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import csv
+import hmac
 import io
 import json
+import os
 import re
 import threading
 import time
@@ -116,8 +118,22 @@ LIVEATC_SEARCH_URL = "https://www.liveatc.net/search/?icao={icao}"
 LOCAL_TZ = ZoneInfo("America/Winnipeg")
 INHG_PER_HPA = 0.0295299830714
 
+
+def _cache_file(name: str) -> Path:
+    configured_dir = (os.environ.get("FLIGHTINFO_CACHE_DIR") or "").strip()
+    if configured_dir:
+        cache_dir = Path(configured_dir)
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Fall back to local files if the configured cache directory is unavailable.
+            return Path(__file__).with_name(f".{name}")
+        return cache_dir / name
+    return Path(__file__).with_name(f".{name}")
+
+
 AIRPORT_CACHE_TTL_SECONDS = 60 * 60 * 24
-AIRPORT_CACHE_FILE = Path(__file__).with_name(".airports_cache.json")
+AIRPORT_CACHE_FILE = _cache_file("airports_cache.json")
 
 _airport_cache_lock = threading.Lock()
 _airport_cache_data: dict[str, dict[str, Any]] | None = None
@@ -126,7 +142,7 @@ _airport_cache_refreshing = False
 _taf_fallback_cache_lock = threading.Lock()
 _taf_fallback_cache: dict[str, str] = {}
 _taf_fallback_cache_loaded = False
-TAF_FALLBACK_CACHE_FILE = Path(__file__).with_name(".taf_fallback_cache.json")
+TAF_FALLBACK_CACHE_FILE = _cache_file("taf_fallback_cache.json")
 METAR_CACHE_MAX_AGE_HOURS = 6.0
 LOCAL_METAR_RECENT_MAX_AGE_HOURS = 2.0
 FALLBACK_METAR_MAX_AGE_HOURS = 6.0
@@ -2062,6 +2078,32 @@ def _flight_category(ceiling_ft: int | None, visibility_sm: float | None) -> dic
 
 
 def _extract_flight_category_from_metar(metar: dict[str, Any]) -> dict[str, str]:
+    provider_category = str(metar.get("fltCat") or "").strip().upper()
+    if provider_category == "LIFR":
+        return {
+            "label": "LIFR",
+            "color": "magenta",
+            "concept": "Ceiling below 500 ft AGL and/or visibility below 1 mile",
+        }
+    if provider_category == "IFR":
+        return {
+            "label": "IFR",
+            "color": "red",
+            "concept": "Ceiling 500 to below 1,000 ft AGL and/or visibility 1 to less than 3 miles",
+        }
+    if provider_category == "MVFR":
+        return {
+            "label": "MVFR",
+            "color": "blue",
+            "concept": "Ceiling 1,000 to 3,000 ft AGL and/or visibility over 3 to 5 miles",
+        }
+    if provider_category == "VFR":
+        return {
+            "label": "VFR",
+            "color": "green",
+            "concept": "Ceiling above 3,000 ft AGL and visibility greater than 5 miles",
+        }
+
     raw_text = str(metar.get("rawOb") or metar.get("raw_text") or "").strip()
     _, _, ceiling_ft = _extract_metar_ceiling_and_other(raw_text)
     visibility_sm = _parse_visibility_sm(metar.get("visib"))
@@ -2545,6 +2587,48 @@ def _query_bool(name: str, default: bool = True) -> bool:
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _request_from_trusted_network() -> bool:
+    remote = (request.remote_addr or "").strip()
+    if not remote:
+        return False
+    if remote in {"127.0.0.1", "::1"}:
+        return True
+    if remote.startswith("192.168.") or remote.startswith("10."):
+        return True
+    if remote.startswith("172."):
+        parts = remote.split(".")
+        if len(parts) >= 2 and parts[1].isdigit():
+            second = int(parts[1])
+            return 16 <= second <= 31
+    return False
+
+
+def _same_origin_request() -> bool:
+    origin = (request.headers.get("Origin") or "").strip()
+    referer = (request.headers.get("Referer") or "").strip()
+    host_url = request.host_url
+    if origin:
+        return origin == host_url.rstrip("/")
+    if referer:
+        return referer.startswith(host_url)
+    return False
+
+
+def _liveatc_admin_authorized() -> bool:
+    configured_token = (os.environ.get("LIVEATC_ADMIN_TOKEN") or "").strip()
+    provided_token = (
+        request.headers.get("X-LiveATC-Admin-Token")
+        or request.form.get("admin_token")
+        or ""
+    ).strip()
+
+    if configured_token:
+        return bool(provided_token) and hmac.compare_digest(provided_token, configured_token)
+
+    # Without a configured token, only allow same-origin requests from trusted local networks.
+    return _request_from_trusted_network() and _same_origin_request()
+
+
 @app.route("/pdf-status")
 @app.route("/prince-status")
 def pdf_status() -> Response:
@@ -2609,6 +2693,9 @@ def index() -> str:
 
 @app.post("/liveatc-status")
 def liveatc_status() -> Response:
+    if not _liveatc_admin_authorized():
+        return jsonify({"error": "Forbidden"}), 403
+
     airport_code = (request.form.get("airport") or "").strip().upper()
     available_raw = (request.form.get("available") or "").strip().lower()
     available = available_raw in {"1", "true", "yes", "on"}
@@ -2623,4 +2710,4 @@ def liveatc_status() -> Response:
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=(os.environ.get("FLASK_DEBUG") == "1"))
